@@ -1,0 +1,18 @@
+# web
+web/node_modules/
+web/dist/
+
+# android
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+android/app/src/main/assets/web/
+
+# os / éditeurs
+.DS_Store
+Thumbs.db
+.vscode/
