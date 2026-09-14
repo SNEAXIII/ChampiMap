@@ -87,6 +87,7 @@ Nom, taille, date, état (complète / X % / en pause). Actions : renommer, suppr
 - Build debug : la WebView charge le serveur Vite du PC via `adb reverse`, rechargement à chaud sur le téléphone.
 - Build release : app web embarquée dans l'APK (`WebViewAssetLoader`).
 - Dans le navigateur du PC : faux bridge (GPS du navigateur, boussole simulée, chunks IGN en direct).
+- Origines figées : `http://localhost:5173` (debug) et `https://appassets.androidplatform.net` (release). IndexedDB est rangé par origine : changer l'une d'elles rend invisibles les waypoints locaux non synchronisés. Les waypoints créés en debug n'apparaissent pas en release.
 
 ## Phases
 

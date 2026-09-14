@@ -6,3 +6,16 @@ body,
   height: 100%;
   margin: 0;
 }
+
+/* Un appui long sur la carte ne doit pas sélectionner de texte ni ouvrir de menu système. */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
