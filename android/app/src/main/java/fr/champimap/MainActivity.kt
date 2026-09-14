@@ -4,8 +4,10 @@ import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -67,6 +69,9 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, backCallback)
 
         setContentView(wrapInsideSystemBars(webView))
+        // Fond blanc sous les barres système : sans ça, les icônes système restent blanches et disparaissent.
+        // Le DecorView doit exister (donc après setContentView) pour que window.insetsController soit non nul.
+        setLightSystemBarIcons()
         webView.loadUrl(BuildConfig.WEB_URL)
     }
 
@@ -84,6 +89,19 @@ class MainActivity : ComponentActivity() {
         bridge.shutdown()
         webView.destroy()
         super.onDestroy()
+    }
+
+    private fun setLightSystemBarIcons() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.setSystemBarsAppearance(
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility =
+                window.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+        }
     }
 
     // targetSdk 36 impose l'edge-to-edge : la page reste entre la barre d'état, la barre de navigation et le clavier.
