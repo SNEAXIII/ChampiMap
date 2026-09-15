@@ -32,6 +32,8 @@ export function WaypointMarkers({ map, waypoints, onSelect }: Props) {
         element.innerHTML =
           '<span class="block text-3xl leading-none">📍</span>' +
           '<span data-label class="absolute top-full left-1/2 max-w-32 -translate-x-1/2 truncate rounded bg-white/90 px-1 text-xs font-medium shadow"></span>';
+        // Empêche le toucher du marqueur de démarrer l'appui long (création de waypoint) de la carte.
+        element.addEventListener('touchstart', (event) => event.stopPropagation(), { passive: true });
         element.addEventListener('click', (event) => {
           event.stopPropagation();
           onSelectRef.current(waypoint.id);

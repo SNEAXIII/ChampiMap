@@ -85,6 +85,11 @@ export function App() {
     callNative('setKeepScreenOn', { on: followMode === 'follow' }).catch(console.warn);
   }, [followMode]);
 
+  // Si le fix disparaît (resync natif) pendant que la feuille « Ma position » est ouverte, la fermer.
+  useEffect(() => {
+    if (sheet?.kind === 'position' && fix === null) setSheet(null);
+  }, [sheet, fix]);
+
   const pressLocate = () => {
     if (!location.running) location.start();
     if (!map) return;

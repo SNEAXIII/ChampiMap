@@ -36,6 +36,8 @@ export function PositionLayer({ map, fix, onSelect, onMarker }: Props) {
     element.type = 'button';
     element.setAttribute('aria-label', 'Ma position');
     element.className = 'block h-5 w-5 rounded-full border-[3px] border-white bg-blue-600 shadow-[0_0_0_3px_rgba(37,99,235,0.3)]';
+    // Empêche le toucher du marqueur de démarrer l'appui long (création de waypoint) de la carte.
+    element.addEventListener('touchstart', (event) => event.stopPropagation(), { passive: true });
     element.addEventListener('click', (event) => {
       event.stopPropagation();
       onSelectRef.current();
