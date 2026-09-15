@@ -889,9 +889,9 @@ export function AccountSection() {
 - [ ] **Step 6: Démarrer la sync automatique dans `web/src/main.tsx`**
 
 - Import : `import { startAutoSync } from './sync/sync';`
-- Remplacer `void loadWaypoints();` par :
+- Remplacer `loadWaypoints().catch((error) => console.error('Chargement des waypoints impossible', error));` par :
 ```tsx
-void loadWaypoints().then(startAutoSync);
+loadWaypoints().then(startAutoSync).catch((error) => console.error('Chargement des waypoints impossible', error));
 ```
 
 - [ ] **Step 7: Vérifier types et build**
