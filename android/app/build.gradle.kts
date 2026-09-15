@@ -44,6 +44,7 @@ android {
 dependencies {
     implementation("androidx.webkit:webkit:1.17.0")
     implementation("androidx.activity:activity:1.13.0")
+    implementation("com.google.android.gms:play-services-location:21.4.0")
 }
 
 // Une release sans app web embarquée afficherait une page blanche.

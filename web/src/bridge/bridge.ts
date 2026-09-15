@@ -1,13 +1,20 @@
 import { createFakeNative } from './fakeNative';
 
+export type LocationFix = { latitude: number; longitude: number; accuracy: number | null; time: number };
+
 /** Méthodes exposées par Kotlin : paramètres et résultat. */
 export type BridgeMethods = {
   setBackEnabled: { params: { enabled: boolean }; result: null };
+  startLocation: { params: Record<string, never>; result: null };
+  setKeepScreenOn: { params: { on: boolean }; result: null };
 };
 
 /** Événements poussés par Kotlin. */
 export type BridgeEvents = {
   back: null;
+  location: LocationFix;
+  satellites: { count: number };
+  locationState: { running: boolean; permissionDenied: boolean };
 };
 
 type NativePort = {
@@ -28,9 +35,25 @@ const pending = new Map<number, { resolve: (value: unknown) => void; reject: (er
 let nextId = 1;
 
 function receive(raw: string): void {
-  const message = JSON.parse(raw) as IncomingMessage;
+  // Un message malformé (bug natif, future version incompatible) ne doit pas planter la page :
+  // on le journalise et on l'ignore plutôt que de laisser JSON.parse lever une exception non gérée.
+  let message: IncomingMessage;
+  try {
+    message = JSON.parse(raw) as IncomingMessage;
+  } catch (error) {
+    console.warn('Message natif malformé, ignoré', raw, error);
+    return;
+  }
   if (message.event !== undefined) {
-    listeners.get(message.event)?.forEach((listener) => listener(message.payload));
+    // Chaque listener s'exécute isolément : un listener qui lève ne doit pas empêcher les autres
+    // (et les événements suivants) de s'exécuter.
+    listeners.get(message.event)?.forEach((listener) => {
+      try {
+        listener(message.payload);
+      } catch (error) {
+        console.error(`Listener pour l'événement "${message.event}" en erreur`, error);
+      }
+    });
     return;
   }
   if (message.id === undefined) return;

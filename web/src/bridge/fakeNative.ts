@@ -2,6 +2,7 @@ type Receive = (raw: string) => void;
 type FakeHandler = (params: Record<string, unknown>) => unknown;
 
 let receiveRef: Receive | null = null;
+let watchId: number | null = null;
 
 /** Pousse un événement comme le ferait Kotlin (navigateur du PC uniquement). */
 export function emitFake(event: string, payload: unknown): void {
@@ -10,6 +11,26 @@ export function emitFake(event: string, payload: unknown): void {
 
 const handlers: Record<string, FakeHandler> = {
   setBackEnabled: () => null,
+  setKeepScreenOn: () => null,
+  startLocation: () => {
+    if (watchId !== null || !('geolocation' in navigator)) return null;
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        emitFake('location', {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          time: position.timestamp,
+        });
+        emitFake('locationState', { running: true, permissionDenied: false });
+      },
+      (error) => {
+        emitFake('locationState', { running: false, permissionDenied: error.code === error.PERMISSION_DENIED });
+      },
+      { enableHighAccuracy: true },
+    );
+    return null;
+  },
 };
 
 /** Remplace le Kotlin quand l'app tourne dans le navigateur du PC. */

@@ -1,7 +1,10 @@
 package fr.champimap
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.Color
+import android.location.Location
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -9,6 +12,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.view.WindowManager
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -16,12 +21,17 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.webkit.WebViewAssetLoader
+import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var webView: WebView
     private lateinit var bridge: NativeBridge
+    private var locationPermissionDenied = false
 
     // Activé par la page quand une feuille ou un panneau est ouvert : retour = fermer, pas quitter.
     private val backCallback = object : OnBackPressedCallback(false) {
@@ -30,9 +40,28 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val locationListener = object : LocationHub.Listener {
+        override fun onFix(fix: Location) = bridge.emit("location", fix.toJson())
+        override fun onSatellites(count: Int) = bridge.emit("satellites", JSONObject().put("count", count))
+        override fun onRunningChanged(running: Boolean) = emitLocationState()
+    }
+
+    private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        val located = granted[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            granted[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        locationPermissionDenied = !located
+        if (located) startLocationService()
+        emitLocationState()
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Edge-to-edge sur toutes les API (26+), pas seulement R+ : doit être appelé après super.onCreate()
+        // (la fenêtre est attachée à ce moment) et avant setContentView(). Fond blanc pour rester cohérent
+        // avec le fond de wrapInsideSystemBars ci-dessous.
+        enableEdgeToEdge(SystemBarStyle.light(Color.WHITE, Color.WHITE))
 
         // chrome://inspect sur le PC en debug.
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
@@ -57,6 +86,14 @@ class MainActivity : ComponentActivity() {
                     view: WebView,
                     request: WebResourceRequest,
                 ): Boolean = !isSameOrigin(request.url)
+
+                // Le renderer (processus séparé) peut mourir (OOM, crash) sans tuer notre processus :
+                // on reconstruit l'activité au lieu de laisser une WebView morte à l'écran. Le service de
+                // localisation (LocationHub/LocationService) n'est pas affecté, il tourne dans notre processus.
+                override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                    recreate()
+                    return true
+                }
             }
         }
 
@@ -66,14 +103,33 @@ class MainActivity : ComponentActivity() {
             runOnUiThread { backCallback.isEnabled = enabled }
             null
         }
+        bridge.handle("startLocation") {
+            runOnUiThread { startLocation() }
+            null
+        }
+        bridge.handle("setKeepScreenOn") { params ->
+            val on = params.getBoolean("on")
+            runOnUiThread {
+                if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+            null
+        }
         bridge.install()
         onBackPressedDispatcher.addCallback(this, backCallback)
 
         setContentView(wrapInsideSystemBars(webView))
-        // Fond blanc sous les barres système : sans ça, les icônes système restent blanches et disparaissent.
-        // Le DecorView doit exister (donc après setContentView) pour que window.insetsController soit non nul.
+        // Sur le téléphone Samsung de test (voir commit e92ddef), les icônes système ne passaient en sombre
+        // qu'après setContentView : enableEdgeToEdge() seul ne suffisait pas à ce moment-là. On garde donc cet
+        // appel explicite en complément, après setContentView, tant que ce n'est pas revérifié sur l'appareil.
         setLightSystemBarIcons()
         webView.loadUrl(BuildConfig.WEB_URL)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        LocationHub.addListener(locationListener)
+        LocationHub.setAppVisible(true)
     }
 
     override fun onResume() {
@@ -86,11 +142,51 @@ class MainActivity : ComponentActivity() {
         super.onPause()
     }
 
+    override fun onStop() {
+        LocationHub.setAppVisible(false)
+        LocationHub.removeListener(locationListener)
+        super.onStop()
+    }
+
     override fun onDestroy() {
         bridge.shutdown()
+        // Détacher avant destroy() : sinon la WebView encore attachée à son parent peut déclencher
+        // des callbacks de rendu après sa destruction.
+        (webView.parent as? ViewGroup)?.removeView(webView)
         webView.destroy()
         super.onDestroy()
     }
+
+    private fun startLocation() {
+        if (LocationService.hasLocationPermission(this)) {
+            locationPermissionDenied = false
+            startLocationService()
+        } else {
+            val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) permissions += Manifest.permission.POST_NOTIFICATIONS
+            permissionLauncher.launch(permissions.toTypedArray())
+        }
+        // La page vient peut-être de (re)charger : on lui renvoie ce qu'on sait déjà.
+        LocationHub.lastFix?.let { bridge.emit("location", it.toJson()) }
+        emitLocationState()
+    }
+
+    private fun startLocationService() {
+        startForegroundService(Intent(this, LocationService::class.java))
+    }
+
+    private fun emitLocationState() {
+        bridge.emit(
+            "locationState",
+            JSONObject().put("running", LocationHub.running).put("permissionDenied", locationPermissionDenied),
+        )
+    }
+
+    private fun Location.toJson(): JSONObject = JSONObject()
+        .put("latitude", latitude)
+        .put("longitude", longitude)
+        .put("accuracy", if (hasAccuracy()) accuracy.toDouble() else JSONObject.NULL)
+        .put("time", time)
 
     private fun setLightSystemBarIcons() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
