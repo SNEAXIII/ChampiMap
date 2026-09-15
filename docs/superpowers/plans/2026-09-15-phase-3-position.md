@@ -370,6 +370,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Color
 import android.location.Location
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -441,7 +442,7 @@ class MainActivity : ComponentActivity() {
                 override fun shouldOverrideUrlLoading(
                     view: WebView,
                     request: WebResourceRequest,
-                ): Boolean = !request.url.toString().startsWith(BuildConfig.WEB_ORIGIN)
+                ): Boolean = !isSameOrigin(request.url)
             }
         }
 
@@ -569,6 +570,16 @@ class MainActivity : ComponentActivity() {
             insets
         }
         return root
+    }
+
+    // Comparaison stricte scheme+host+port (pas de préfixe texte : évite les contournements du type
+    // "http://localhost:5173.evil.com/" ou "http://localhost:51730/").
+    private fun isSameOrigin(url: Uri): Boolean =
+        url.scheme == webOriginUri.scheme && url.host == webOriginUri.host && url.port == webOriginUri.port
+
+    companion object {
+        // Parsée une seule fois : réutilisée à chaque navigation.
+        private val webOriginUri: Uri = Uri.parse(BuildConfig.WEB_ORIGIN)
     }
 }
 ```
