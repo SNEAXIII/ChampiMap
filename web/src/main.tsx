@@ -4,7 +4,7 @@ import './index.css';
 import { App } from './App';
 import { loadWaypoints } from './waypoints/waypointStore';
 
-void loadWaypoints();
+loadWaypoints().catch((error) => console.error('Chargement des waypoints impossible', error));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -42,6 +42,7 @@ export function App() {
       {viseur && <Viseur viseur={viseur} />}
       {sheet?.kind === 'create' && (
         <CreateWaypointSheet
+          key={sheet.defaultName + sheet.position.latitude + ',' + sheet.position.longitude}
           position={sheet.position}
           defaultName={sheet.defaultName}
           onCancel={() => setSheet(null)}
