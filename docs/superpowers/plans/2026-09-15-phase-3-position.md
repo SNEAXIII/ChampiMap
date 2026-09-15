@@ -378,6 +378,7 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -385,6 +386,8 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
@@ -420,6 +423,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Edge-to-edge sur toutes les API (26+), pas seulement R+ : doit être appelé après super.onCreate()
+        // (la fenêtre est attachée à ce moment) et avant setContentView(). Fond blanc pour rester cohérent
+        // avec le fond de wrapInsideSystemBars ci-dessous.
+        enableEdgeToEdge(SystemBarStyle.light(Color.WHITE, Color.WHITE))
+
         // chrome://inspect sur le PC en debug.
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
@@ -443,6 +451,14 @@ class MainActivity : ComponentActivity() {
                     view: WebView,
                     request: WebResourceRequest,
                 ): Boolean = !isSameOrigin(request.url)
+
+                // Le renderer (processus séparé) peut mourir (OOM, crash) sans tuer notre processus :
+                // on reconstruit l'activité au lieu de laisser une WebView morte à l'écran. Le service de
+                // localisation (LocationHub/LocationService) n'est pas affecté, il tourne dans notre processus.
+                override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                    recreate()
+                    return true
+                }
             }
         }
 
@@ -468,8 +484,9 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, backCallback)
 
         setContentView(wrapInsideSystemBars(webView))
-        // Fond blanc sous les barres système : sans ça, les icônes système restent blanches et disparaissent.
-        // Le DecorView doit exister (donc après setContentView) pour que window.insetsController soit non nul.
+        // Sur le téléphone Samsung de test (voir commit e92ddef), les icônes système ne passaient en sombre
+        // qu'après setContentView : enableEdgeToEdge() seul ne suffisait pas à ce moment-là. On garde donc cet
+        // appel explicite en complément, après setContentView, tant que ce n'est pas revérifié sur l'appareil.
         setLightSystemBarIcons()
         webView.loadUrl(BuildConfig.WEB_URL)
     }
@@ -498,6 +515,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         bridge.shutdown()
+        // Détacher avant destroy() : sinon la WebView encore attachée à son parent peut déclencher
+        // des callbacks de rendu après sa destruction.
+        (webView.parent as? ViewGroup)?.removeView(webView)
         webView.destroy()
         super.onDestroy()
     }
@@ -584,6 +604,13 @@ class MainActivity : ComponentActivity() {
 }
 ```
 
+Note : `enableEdgeToEdge()` est nouveau ici (revue finale phase 2) et couvre toutes les API 26+, pas seulement
+R+ comme `setLightSystemBarIcons()`. Ce dernier est conservé tel quel car le commit e92ddef a montré que, sur le
+téléphone Samsung de test, l'appel après `setContentView()` était nécessaire pour obtenir des icônes sombres ;
+**le Step 12 ci-dessous doit revérifier que les icônes système restent bien sombres sur fond blanc** maintenant
+que `enableEdgeToEdge()` s'ajoute au dispositif existant, et que le renommage/reconstruction déclenché par
+`onRenderProcessGone` ne casse pas cet état.
+
 - [ ] **Step 6: Remplacer `web/src/bridge/bridge.ts`**
 
 ```ts
@@ -624,9 +651,25 @@ const pending = new Map<number, { resolve: (value: unknown) => void; reject: (er
 let nextId = 1;
 
 function receive(raw: string): void {
-  const message = JSON.parse(raw) as IncomingMessage;
+  // Un message malformé (bug natif, future version incompatible) ne doit pas planter la page :
+  // on le journalise et on l'ignore plutôt que de laisser JSON.parse lever une exception non gérée.
+  let message: IncomingMessage;
+  try {
+    message = JSON.parse(raw) as IncomingMessage;
+  } catch (error) {
+    console.warn('Message natif malformé, ignoré', raw, error);
+    return;
+  }
   if (message.event !== undefined) {
-    listeners.get(message.event)?.forEach((listener) => listener(message.payload));
+    // Chaque listener s'exécute isolément : un listener qui lève ne doit pas empêcher les autres
+    // (et les événements suivants) de s'exécuter.
+    listeners.get(message.event)?.forEach((listener) => {
+      try {
+        listener(message.payload);
+      } catch (error) {
+        console.error(`Listener pour l'événement "${message.event}" en erreur`, error);
+      }
+    });
     return;
   }
   if (message.id === undefined) return;
@@ -749,7 +792,7 @@ export function useLocation(): LocationState {
   const [permissionDenied, setPermissionDenied] = useState(false);
 
   const start = useCallback(() => {
-    void callNative('startLocation', {});
+    callNative('startLocation', {}).catch(console.warn);
   }, []);
 
   useEffect(() => {
@@ -814,6 +857,7 @@ Expected: aucune erreur, `BUILD SUCCESSFUL`.
 4. Notification « Champi Map utilise ta position » présente : `timeout 30 adb shell dumpsys notification --noredact | grep -i "champi"`.
 5. Intervalle : `timeout 30 adb shell dumpsys location | grep -i -A3 fr.champimap` montre une requête `interval=5s` (ou `5000`). Presser Home (`input keyevent 3`), attendre 5 s, relancer la commande : `interval=30s`. Revenir dans l'app (`am start`).
 6. Stop : `timeout 30 adb shell am startservice -a fr.champimap.action.STOP_LOCATION -n fr.champimap/.LocationService`. Capture : badge `GPS arrêté · touche ◎`, notification disparue.
+7. **Icônes système** (revue finale phase 2, commit e92ddef) : sur la capture de l'étape 2 ou 3, vérifier que les icônes de la barre de statut (heure, batterie…) restent **sombres** sur le fond blanc, avec `enableEdgeToEdge()` en place en plus de `setLightSystemBarIcons()`. Si elles redeviennent claires/invisibles sur ce téléphone, c'est une régression à corriger avant de continuer.
 
 - [ ] **Step 13: Commit**
 
@@ -1136,7 +1180,7 @@ export function App() {
   // Bouton retour Android : ferme la feuille, sinon le panneau.
   const hasLayer = sheet !== null || panel !== null;
   useEffect(() => {
-    void callNative('setBackEnabled', { enabled: hasLayer });
+    callNative('setBackEnabled', { enabled: hasLayer }).catch(console.warn);
   }, [hasLayer]);
   useEffect(
     () =>
@@ -1173,7 +1217,7 @@ export function App() {
 
   // Écran allumé uniquement en Suivi.
   useEffect(() => {
-    void callNative('setKeepScreenOn', { on: followMode === 'follow' });
+    callNative('setKeepScreenOn', { on: followMode === 'follow' }).catch(console.warn);
   }, [followMode]);
 
   const pressLocate = () => {

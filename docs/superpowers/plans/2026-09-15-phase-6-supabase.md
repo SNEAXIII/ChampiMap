@@ -554,7 +554,32 @@ git commit -m "feat: connexion Google native vers Supabase"
   - `useSyncState(): SyncState`.
   - `auth.ts` : `signOut()` renvoie une erreur si des waypoints locaux ne peuvent pas être envoyés.
 
-- [ ] **Step 1: Ajouter `clearWaypoints` à la fin de `web/src/waypoints/waypointStore.ts`**
+- [ ] **Step 1: `web/src/waypoints/waypointStore.ts`** — ajouter `clearWaypoints`, documenter l'invariant de `saveWaypoints` et demander la persistance du stockage (revue finale phase 2)
+
+Au-dessus de `saveWaypoints` (que `sync.ts` va appeler juste après un `getAllWaypoints()`), ajouter ce commentaire
+documentant l'invariant que tout appelant — `sync.ts` en Step 2/3 en premier lieu — doit respecter :
+
+```ts
+// Invariant : lire `getAllWaypoints()` puis appeler `saveWaypoints` sans `await` entre les deux,
+// sinon une écriture concurrente (une autre sauvegarde, ou la sync) peut être écrasée.
+export async function saveWaypoints(changed: Waypoint[]): Promise<void> {
+```
+
+Dans `loadWaypoints`, demander un stockage persistant : tant que la synchro (phase 6) n'a pas encore tourné pour
+ce waypoint, l'appareil en détient la seule copie, et le navigateur ne doit pas pouvoir l'effacer sous pression
+de stockage.
+
+```ts
+export async function loadWaypoints(): Promise<void> {
+  const db = await dbPromise;
+  replaceAll(await db.getAll('waypoints'));
+  // Tant que la synchro n'a pas tourné, l'appareil détient la seule copie des waypoints :
+  // on demande au navigateur de ne pas l'effacer sous pression de stockage.
+  void navigator.storage?.persist?.();
+}
+```
+
+Et à la fin du fichier :
 
 ```ts
 /** Vide les waypoints locaux (déconnexion ou changement de compte, après la dernière sync). */
