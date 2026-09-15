@@ -18,6 +18,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -58,14 +59,30 @@ class LocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // startForegroundService() exige un startForeground() rapide, même si on s'arrête aussitôt après
-        // (permission absente ou action Stop) : sinon le système lève une exception de service au premier
-        // plan qui n'a pas démarré à temps.
-        startInForeground()
-        if (intent?.action == ACTION_STOP || !hasLocationPermission(this)) {
+        if (intent?.action == ACTION_STOP) {
+            // Démarré via startService() (PendingIntent.getService) depuis la notification : pas
+            // d'obligation startForeground ici, on ne fait que quitter le premier plan et s'arrêter.
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
+        if (!hasLocationPermission(this)) {
+            // startForegroundService() impose quand même un startForeground(), même sans la permission :
+            // sur API 34+ un type LOCATION sans permission peut lever une SecurityException. Best effort
+            // seulement — la vraie protection est la vérification de permission côté appelant
+            // (MainActivity.startLocation ne démarre le service qu'après l'avoir vérifiée).
+            try {
+                startInForeground()
+            } catch (e: SecurityException) {
+                Log.w(TAG, "startForeground refusé (permission manquante)", e)
+            } catch (e: IllegalStateException) {
+                Log.w(TAG, "startForeground refusé (service en arrière-plan)", e)
+            }
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        startInForeground()
         if (!started) {
             started = true
             LocationHub.addVisibilityListener(onVisibilityChanged)
@@ -154,6 +171,7 @@ class LocationService : Service() {
 
     companion object {
         const val ACTION_STOP = "fr.champimap.action.STOP_LOCATION"
+        private const val TAG = "LocationService"
         private const val CHANNEL_ID = "location"
         private const val NOTIFICATION_ID = 1
         private const val VISIBLE_INTERVAL_MS = 5_000L
