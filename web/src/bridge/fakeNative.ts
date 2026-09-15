@@ -25,6 +25,12 @@ const handlers: Record<string, FakeHandler> = {
         emitFake('locationState', { running: true, permissionDenied: false });
       },
       (error) => {
+        // Permission refusée : la position ne viendra jamais, on libère watchId pour qu'un nouveau
+        // démarrage (retry) relance vraiment watchPosition au lieu de sortir tôt ci-dessus.
+        if (error.code === error.PERMISSION_DENIED && watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
         emitFake('locationState', { running: false, permissionDenied: error.code === error.PERMISSION_DENIED });
       },
       { enableHighAccuracy: true },

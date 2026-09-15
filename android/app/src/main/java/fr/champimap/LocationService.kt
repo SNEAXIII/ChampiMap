@@ -58,11 +58,14 @@ class LocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // startForegroundService() exige un startForeground() rapide, même si on s'arrête aussitôt après
+        // (permission absente ou action Stop) : sinon le système lève une exception de service au premier
+        // plan qui n'a pas démarré à temps.
+        startInForeground()
         if (intent?.action == ACTION_STOP || !hasLocationPermission(this)) {
             stopSelf()
             return START_NOT_STICKY
         }
-        startInForeground()
         if (!started) {
             started = true
             LocationHub.addVisibilityListener(onVisibilityChanged)
@@ -82,6 +85,8 @@ class LocationService : Service() {
             fused.removeLocationUpdates(locationCallback)
             locationManager.unregisterGnssStatusCallback(gnssCallback)
             LocationHub.removeVisibilityListener(onVisibilityChanged)
+            // Le nombre de satellites n'a plus de sens une fois le GPS arrêté.
+            LocationHub.publishSatellites(0)
             LocationHub.setRunning(false)
         }
         super.onDestroy()
@@ -99,10 +104,18 @@ class LocationService : Service() {
 
     @SuppressLint("MissingPermission")
     private fun registerGnssStatus() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            locationManager.registerGnssStatusCallback(mainExecutor, gnssCallback)
-        } else {
-            locationManager.registerGnssStatusCallback(gnssCallback, Handler(Looper.getMainLooper()))
+        // Le statut GNSS brut (nombre de satellites) exige ACCESS_FINE_LOCATION : en position
+        // approximative (COARSE seul, permission « Approximative »), s'y abonner lève une
+        // SecurityException. Le nombre de satellites reste alors inconnu, ce qui n'empêche pas le fix.
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                locationManager.registerGnssStatusCallback(mainExecutor, gnssCallback)
+            } else {
+                locationManager.registerGnssStatusCallback(gnssCallback, Handler(Looper.getMainLooper()))
+            }
+        } catch (e: SecurityException) {
+            // Idem : nombre de satellites inconnu, pas bloquant.
         }
     }
 

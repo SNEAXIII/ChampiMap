@@ -8,6 +8,7 @@ import android.location.Location
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -24,6 +25,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
 import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
 
@@ -32,6 +34,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private lateinit var bridge: NativeBridge
     private var locationPermissionDenied = false
+
+    // StrictMode (debug) invoque effects deux fois : évite un double permissionLauncher.launch()
+    // dont le second retour (map vide) serait pris pour un refus.
+    private var permissionRequestInFlight = false
 
     // Activé par la page quand une feuille ou un panneau est ouvert : retour = fermer, pas quitter.
     private val backCallback = object : OnBackPressedCallback(false) {
@@ -47,6 +53,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        permissionRequestInFlight = false
+        // Map vide : résultat fantôme d'un second appel (StrictMode en debug), pas un vrai refus.
+        if (granted.isEmpty()) return@registerForActivityResult
         val located = granted[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             granted[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         locationPermissionDenied = !located
@@ -130,6 +139,9 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         LocationHub.addListener(locationListener)
         LocationHub.setAppVisible(true)
+        // Le listener vient d'être (ré)attaché : la page a pu rater un changement pendant qu'on était
+        // en arrière-plan (ex. arrêt depuis la notification), on lui renvoie l'état courant.
+        resyncLocationState()
     }
 
     override fun onResume() {
@@ -158,21 +170,39 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startLocation() {
-        if (LocationService.hasLocationPermission(this)) {
-            locationPermissionDenied = false
-            startLocationService()
-        } else {
-            val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) permissions += Manifest.permission.POST_NOTIFICATIONS
-            permissionLauncher.launch(permissions.toTypedArray())
+        // Démarrer le service ou demander la permission exige que l'activité soit au moins démarrée
+        // (API 31+/34+) : sinon (ex. page rechargée par onRenderProcessGone pendant un passage en
+        // arrière-plan) l'appel peut lever une exception hors de portée du try/catch du bridge.
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            if (LocationService.hasLocationPermission(this)) {
+                locationPermissionDenied = false
+                startLocationService()
+            } else if (!permissionRequestInFlight) {
+                permissionRequestInFlight = true
+                val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) permissions += Manifest.permission.POST_NOTIFICATIONS
+                permissionLauncher.launch(permissions.toTypedArray())
+            }
         }
-        // La page vient peut-être de (re)charger : on lui renvoie ce qu'on sait déjà.
-        LocationHub.lastFix?.let { bridge.emit("location", it.toJson()) }
-        emitLocationState()
+        resyncLocationState()
     }
 
     private fun startLocationService() {
-        startForegroundService(Intent(this, LocationService::class.java))
+        try {
+            startForegroundService(Intent(this, LocationService::class.java))
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "Service de localisation refusé (app en arrière-plan)", e)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Permission refusée pour démarrer le service de localisation", e)
+        }
+    }
+
+    // La page vient peut-être de (re)charger, ou de revenir au premier plan : on lui renvoie ce qu'on
+    // sait déjà (LocationHub.running reste à false si startLocationService a échoué ci-dessus).
+    private fun resyncLocationState() {
+        LocationHub.lastFix?.let { bridge.emit("location", it.toJson()) }
+        bridge.emit("satellites", JSONObject().put("count", LocationHub.satellites))
+        emitLocationState()
     }
 
     private fun emitLocationState() {
@@ -233,6 +263,8 @@ class MainActivity : ComponentActivity() {
         url.scheme == webOriginUri.scheme && url.host == webOriginUri.host && url.port == webOriginUri.port
 
     companion object {
+        private const val TAG = "MainActivity"
+
         // Parsée une seule fois : réutilisée à chaque navigation.
         private val webOriginUri: Uri = Uri.parse(BuildConfig.WEB_ORIGIN)
     }
