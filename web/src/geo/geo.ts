@@ -21,3 +21,15 @@ export function formatDistance(meters: number): string {
 export function formatCoords({ latitude, longitude }: LatLon): string {
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 }
+
+/** Anneau de polygone GeoJSON ([lon, lat]) approchant un cercle de `radiusMeters` autour de `center`. */
+export function circlePolygon(center: LatLon, radiusMeters: number, steps = 48): number[][][] {
+  const latRadius = radiusMeters / 111_320;
+  const lonRadius = radiusMeters / (111_320 * Math.cos(toRadians(center.latitude)));
+  const ring: number[][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * 2 * Math.PI;
+    ring.push([center.longitude + lonRadius * Math.cos(angle), center.latitude + latRadius * Math.sin(angle)]);
+  }
+  return [ring];
+}

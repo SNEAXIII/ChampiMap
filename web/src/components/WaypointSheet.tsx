@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { BottomSheet } from './BottomSheet';
-import { formatCoords } from '../geo/geo';
+import { formatCoords, formatDistance } from '../geo/geo';
 import { deleteWaypoint, renameWaypoint, type Waypoint } from '../waypoints/waypointStore';
 
 type Props = {
   waypoint: Waypoint;
+  distance: number | null;
   onClose: () => void;
 };
 
-export function WaypointSheet({ waypoint, onClose }: Props) {
+export function WaypointSheet({ waypoint, distance, onClose }: Props) {
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(waypoint.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -17,7 +18,8 @@ export function WaypointSheet({ waypoint, onClose }: Props) {
 
   return (
     <BottomSheet title={waypoint.name} onClose={onClose}>
-      <p className="mb-3 text-sm text-gray-500">{formatCoords(waypoint)}</p>
+      <p className="text-sm text-gray-500">{formatCoords(waypoint)}</p>
+      <p className="mb-3 text-sm text-gray-500">{distance === null ? 'Distance inconnue' : `À ${formatDistance(distance)}`}</p>
       {renaming ? (
         <form
           className="flex flex-col gap-2"
