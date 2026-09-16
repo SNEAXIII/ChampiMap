@@ -39,3 +39,13 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 - [ ] C15 Crash du renderer (chrome://inspect ou mémoire basse) : l'activité se recrée et la position se resynchronise
 - [ ] C16 GPS actif sans nouveau fix pendant > 60 s : badge « Position d'il y a N min » et point bleu atténué ; simulable en intérieur loin des fenêtres
 - [ ] C17 Ménage : mode avion laissé activé à la fin de la séance du 2026-09-16
+
+## Phase 4 — cache des cartes
+- [ ] D1 En ligne : carte Plan IGN servie via `/chunks/`, aucune erreur CORS dans logcat
+- [ ] D2 Après 3 glissés + 2 zooms : `run-as fr.champimap ls -la databases/` montre `chunks.db` non vide
+- [ ] D3 Mode avion + relance : zone parcourue affichée depuis le cache, zone jamais vue beige
+- [ ] D4 Wi-Fi + GPS actif : « Cartes vues récemment » augmente nettement en 2 min (pré-téléchargement des 9 zones)
+- [ ] D5 « aussi en données mobiles » coché survit à une relance ; le décocher
+- [ ] D6 Mode avion : zoom 17 autour de soi sans avoir parcouru la zone → carte affichée (pré-téléchargée)
+- [ ] D7 Pré-téléchargement stoppé quand le GPS est arrêté (Stop)
+- [ ] D8 Remettre le mode avion à OFF (`airplane_mode_on` = 0)
