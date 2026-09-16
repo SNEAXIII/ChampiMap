@@ -35,10 +35,13 @@ export function ClaimSelection({ map, onDone }: Props) {
   const [stats, setStats] = useState<StorageStats | null>(null);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState(defaultClaimName);
+  const [belowGridZoom, setBelowGridZoom] = useState(() => map.getZoom() < GRID_MIN_ZOOM);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    void callNative('getChunkSizeAverages', {}).then(setAverages);
-    void callNative('getStorageStats', {}).then(setStats);
+    void callNative('getChunkSizeAverages', {}).then(setAverages).catch(console.warn);
+    void callNative('getStorageStats', {}).then(setStats).catch(console.warn);
   }, []);
 
   // Gestes : sur Android, un doigt ne déplace plus la carte (deux doigts oui). Sur PC, la souris dessine.
@@ -64,6 +67,7 @@ export function ClaimSelection({ map, onDone }: Props) {
     const drawGrid = () => {
       const source = map.getSource(GRID_SOURCE) as GeoJSONSource | undefined;
       if (!source) return;
+      setBelowGridZoom(map.getZoom() < GRID_MIN_ZOOM);
       if (map.getZoom() < GRID_MIN_ZOOM) {
         source.setData(EMPTY);
         return;
@@ -98,6 +102,11 @@ export function ClaimSelection({ map, onDone }: Props) {
     // l'ancre sans toucher au rectangle déjà tracé, sinon son touchstart (touches.length passe à 1 avant que
     // le deuxième doigt ne soit vu) effacerait le rectangle en cours.
     let touchDragged = false;
+    // Point de contact initial du premier doigt, et distance en-deçà de laquelle un léger tremblement (ex. avant
+    // que le deuxième doigt ne se pose pour pincer/zoomer) ne compte pas comme un glissé et ne modifie pas le
+    // rectangle déjà tracé.
+    let touchStart: { x: number; y: number } | null = null;
+    const TOUCH_DRAG_THRESHOLD_PX = 8;
 
     const regionUnder = (clientX: number, clientY: number) => {
       const box = container.getBoundingClientRect();
@@ -113,16 +122,22 @@ export function ClaimSelection({ map, onDone }: Props) {
     };
 
     const onTouchStart = (event: TouchEvent) => {
-      if (event.touches.length === 1) {
+      if (event.touches.length === 1 && map.getZoom() >= GRID_MIN_ZOOM) {
         anchor = regionUnder(event.touches[0].clientX, event.touches[0].clientY);
+        touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
         touchDragged = false;
       } else {
-        // Deuxième doigt : on ne dessine plus au doigt levé, le rectangle existant est laissé tel quel.
+        // Deuxième doigt (ou zoom trop faible pour dessiner) : on ne dessine plus au doigt levé, le rectangle
+        // existant est laissé tel quel.
         anchor = null;
+        touchStart = null;
       }
     };
     const onTouchMove = (event: TouchEvent) => {
-      if (event.touches.length === 1 && anchor) {
+      if (event.touches.length === 1 && anchor && touchStart) {
+        const dx = event.touches[0].clientX - touchStart.x;
+        const dy = event.touches[0].clientY - touchStart.y;
+        if (!touchDragged && Math.hypot(dx, dy) < TOUCH_DRAG_THRESHOLD_PX) return;
         touchDragged = true;
         extend(event.touches[0].clientX, event.touches[0].clientY);
       }
@@ -132,11 +147,12 @@ export function ClaimSelection({ map, onDone }: Props) {
       if (anchor && !touchDragged) setRect(rectFromRegions(anchor, anchor));
       if (event.touches.length === 0) {
         anchor = null;
+        touchStart = null;
         touchDragged = false;
       }
     };
     const onMouseDown = (event: MouseEvent) => {
-      if (event.button === 0) start(event.clientX, event.clientY);
+      if (event.button === 0 && map.getZoom() >= GRID_MIN_ZOOM) start(event.clientX, event.clientY);
     };
     const onMouseMove = (event: MouseEvent) => {
       if (event.buttons & 1) extend(event.clientX, event.clientY);
@@ -170,9 +186,17 @@ export function ClaimSelection({ map, onDone }: Props) {
   const projectedTotal = stats ? stats.cacheBytes + stats.claimBytes + estimate : 0;
 
   const confirm = async () => {
-    if (!rect) return;
-    await callNative('createClaim', { id: crypto.randomUUID(), name: name.trim() || defaultClaimName(), ...rect });
-    onDone();
+    if (!rect || busy) return;
+    setBusy(true);
+    setError(false);
+    try {
+      await callNative('createClaim', { id: crypto.randomUUID(), name: name.trim() || defaultClaimName(), ...rect });
+      onDone();
+    } catch (err) {
+      console.error('Création de la zone hors ligne impossible', err);
+      setError(true);
+      setBusy(false);
+    }
   };
 
   return (
@@ -187,11 +211,16 @@ export function ClaimSelection({ map, onDone }: Props) {
         >
           <h2 className="text-lg font-semibold">Nom de la zone</h2>
           <input aria-label="Nom de la zone" value={name} onChange={(event) => setName(event.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-base" />
+          {error && (
+            <p role="alert" className="text-sm text-red-600">
+              Création impossible sur l'appareil.
+            </p>
+          )}
           <div className="flex gap-2">
-            <button type="button" onClick={() => setNaming(false)} className="flex-1 rounded-lg bg-gray-100 py-3 font-medium">
+            <button type="button" disabled={busy} onClick={() => setNaming(false)} className="flex-1 rounded-lg bg-gray-100 py-3 font-medium disabled:opacity-60">
               Retour
             </button>
-            <button type="submit" className="flex-1 rounded-lg bg-emerald-700 py-3 font-medium text-white">
+            <button type="submit" disabled={busy} className="flex-1 rounded-lg bg-emerald-700 py-3 font-medium text-white disabled:opacity-60">
               Télécharger
             </button>
           </div>
@@ -202,9 +231,11 @@ export function ClaimSelection({ map, onDone }: Props) {
           <p className="mt-1 text-sm text-gray-600">
             {rect
               ? `${regionCount(rect)} case${regionCount(rect) > 1 ? 's' : ''} · ≈ ${formatBytes(estimate)}`
-              : isAndroid
-                ? 'Trace un rectangle avec un doigt. Deux doigts pour déplacer la carte.'
-                : 'Trace un rectangle à la souris. Molette pour zoomer.'}
+              : belowGridZoom
+                ? 'Zoome pour afficher la grille des cases.'
+                : isAndroid
+                  ? 'Trace un rectangle avec un doigt. Deux doigts pour déplacer la carte.'
+                  : 'Trace un rectangle à la souris. Molette pour zoomer.'}
           </p>
           {rect && projectedTotal > GLOBAL_WARNING_BYTES && (
             <p className="mt-2 rounded-lg bg-amber-100 p-2 text-sm font-medium text-amber-900">
