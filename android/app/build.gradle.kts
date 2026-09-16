@@ -39,6 +39,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    lint {
+        // Faux positif : play-services-location tire fragment 1.1.0, mais MainActivity est une
+        // ComponentActivity (pas de FragmentActivity), le bug visé par ce contrôle ne la concerne pas.
+        disable += "InvalidFragmentVersionForActivityResult"
+    }
 }
 
 dependencies {
