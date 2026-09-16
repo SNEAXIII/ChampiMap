@@ -8,6 +8,7 @@ import { WaypointSheet } from './components/WaypointSheet';
 import { WaypointList } from './components/WaypointList';
 import { BottomBar } from './components/BottomBar';
 import { ClaimSelection } from './components/ClaimSelection';
+import { ClaimOverlays } from './components/ClaimOverlays';
 import { ClaimsPanel } from './components/ClaimsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { GpsBadge } from './components/GpsBadge';
@@ -146,6 +147,7 @@ export function App() {
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <MapView onMapReady={setMap} />
         <GpsBadge location={location} stale={stale} />
+        {map && <ClaimOverlays map={map} claims={claims} />}
         {map && <PositionLayer map={map} fix={fix} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
         {map && <WaypointMarkers map={map} waypoints={waypoints} onSelect={(id) => setSheet({ kind: 'waypoint', id })} />}
         {viseur && <Viseur viseur={viseur} />}

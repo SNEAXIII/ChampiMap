@@ -84,3 +84,10 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 - [ ] G5 [Supprimer] → [Confirmer] sur la zone d'une case : elle disparaît ; si elle était en cours, la notification s'arrête sous ~5 s
 - [ ] G6 Paramètres : « Zones hors ligne : N Mo » correspond à peu près à la somme des tailles affichées
 - [ ] G7 Retour Android depuis la liste : la liste se ferme
+
+### Task 3 — brouillard et contours
+- [ ] H1 Créer une zone d'une case ; pendant son téléchargement : la case est voilée de gris
+- [ ] H2 Téléchargement terminé : voile retiré, contour vert pointillé autour de la zone (la zone de la Task 1 aussi)
+- [ ] H3 Mode avion, attendre 3 s, zoomer au niveau 11 autour d'une zone complète : les cases ni en zone ni déjà vues sont voilées, la zone complète et les secteurs parcourus ne le sont pas
+- [ ] H4 Dézoomer sous le niveau 10 : pas de voile hors ligne
+- [ ] H5 Désactiver le mode avion : le voile hors ligne disparaît sous ~3 s ; vérifier `airplane_mode_on` = `0`
