@@ -8,18 +8,30 @@ type Props = {
 
 export function SettingsPanel({ onClose }: Props) {
   const [stats, setStats] = useState<StorageStats | null>(null);
+  const [statsUnavailable, setStatsUnavailable] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   useEffect(() => {
-    void callNative('getStorageStats', {}).then(setStats);
-    void callNative('getSettings', {}).then(setSettings);
+    callNative('getStorageStats', {})
+      .then(setStats)
+      .catch((error: unknown) => {
+        console.warn(error);
+        setStatsUnavailable(true);
+      });
+    // Échec silencieux (hors console) : la case reste désactivée (settings reste null), ce qui est le
+    // comportement voulu quand on ne connaît pas l'état réel du réglage.
+    callNative('getSettings', {}).then(setSettings).catch(console.warn);
   }, []);
 
   const togglePrefetch = async () => {
     if (!settings) return;
     const next = !settings.prefetchOnMobileData;
-    await callNative('setPrefetchOnMobileData', { on: next });
-    setSettings({ ...settings, prefetchOnMobileData: next });
+    try {
+      await callNative('setPrefetchOnMobileData', { on: next });
+      setSettings((s) => s && { ...s, prefetchOnMobileData: next });
+    } catch (error) {
+      console.warn(error);
+    }
   };
 
   return (
@@ -40,6 +52,8 @@ export function SettingsPanel({ onClose }: Props) {
               </li>
               <li>Zones hors ligne : {formatBytes(stats.claimBytes)}</li>
             </ul>
+          ) : statsUnavailable ? (
+            <p className="text-gray-500">Indisponible</p>
           ) : (
             <p className="text-gray-500">Calcul…</p>
           )}
