@@ -55,11 +55,16 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
                 "PRIMARY KEY (z, x, y))",
         )
         db.execSQL("CREATE INDEX chunks_last_access ON chunks (last_access)")
+        // Couvre availableRegions()/covers() (z, x, y) et permet de lire size sans revenir aux pages de données.
+        db.execSQL("CREATE INDEX chunks_zxy_size ON chunks (z, x, y, size)")
         createClaimsTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 2) createClaimsTable(db)
+        if (oldVersion < 2) {
+            db.execSQL("CREATE INDEX chunks_zxy_size ON chunks (z, x, y, size)")
+            createClaimsTable(db)
+        }
     }
 
     private fun createClaimsTable(db: SQLiteDatabase) {
@@ -134,13 +139,19 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
     fun cacheBytes(): Long = totalBytes() - claimBytes()
 
     /** Le cache vise 500 MB, et moins si les claims poussent le total au-delà de 1 GB. */
-    fun cacheTargetBytes(): Long = minOf(CACHE_TARGET_BYTES, maxOf(0L, GLOBAL_LIMIT_BYTES - claimBytes()))
+    fun cacheTargetBytes(): Long = cacheTargetBytes(claimBytes())
+
+    /** Même formule que ci-dessus mais à partir d'un claimBytes() déjà calculé (évite de refaire la jointure). */
+    fun cacheTargetBytes(claimBytes: Long): Long = minOf(CACHE_TARGET_BYTES, maxOf(0L, GLOBAL_LIMIT_BYTES - claimBytes))
 
     /** Supprime les chunks non claimés les plus anciennement vus jusqu'à repasser sous 95 % de la cible. */
     @Synchronized
     fun trimCache() {
-        val target = cacheTargetBytes()
-        var total = cacheBytes()
+        // Un seul calcul de claimBytes() (jointure contre claims) : la cible et la taille du cache en dérivent
+        // chacun, l'appeler deux fois répéterait la même requête coûteuse.
+        val claimBytes = claimBytes()
+        val target = cacheTargetBytes(claimBytes)
+        var total = totalBytes() - claimBytes
         // Rien à faire tant qu'on n'a pas dépassé la cible elle-même : on évite ainsi le scan NOT EXISTS
         // (jointure contre claims) à chaque écriture, et on ne vise la marge de 95 % que lorsqu'il faut
         // réellement nettoyer.
@@ -185,10 +196,14 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
     fun availableRegions(xMin: Int, yMin: Int, xMax: Int, yMax: Int): List<Pair<Int, Int>> {
         val shift = "(z - ${ChunkMath.REGION_ZOOM})"
         val regions = ArrayList<Pair<Int, Int>>()
+        // xMin/yMin/xMax/yMax sont des Int (pas une saisie utilisateur) : inlinés directement, pas d'injection
+        // possible. On ne peut pas les lier avec `?` ici : la comparaison porte sur une expression (x >> shift),
+        // pas sur une colonne nue, donc SQLite n'applique pas l'affinité INTEGER de `x`/`y` au paramètre lié — un
+        // argument lié par rawQuery (toujours TEXT côté Android) ne matcherait alors jamais un entier calculé.
         readableDatabase.rawQuery(
             "SELECT DISTINCT x >> $shift, y >> $shift FROM chunks " +
-                "WHERE z >= ${ChunkMath.REGION_ZOOM} AND (x >> $shift) BETWEEN ? AND ? AND (y >> $shift) BETWEEN ? AND ?",
-            arrayOf(xMin.toString(), xMax.toString(), yMin.toString(), yMax.toString()),
+                "WHERE z >= ${ChunkMath.REGION_ZOOM} AND (x >> $shift) BETWEEN $xMin AND $xMax AND (y >> $shift) BETWEEN $yMin AND $yMax",
+            null,
         ).use { cursor ->
             while (cursor.moveToNext()) regions += cursor.getInt(0) to cursor.getInt(1)
         }

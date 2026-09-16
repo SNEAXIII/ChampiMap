@@ -139,7 +139,7 @@ class MainActivity : ComponentActivity() {
             val claimBytes = store.claimBytes()
             JSONObject()
                 .put("cacheBytes", store.totalBytes() - claimBytes)
-                .put("cacheTargetBytes", minOf(ChunkStore.CACHE_TARGET_BYTES, maxOf(0L, ChunkStore.GLOBAL_LIMIT_BYTES - claimBytes)))
+                .put("cacheTargetBytes", store.cacheTargetBytes(claimBytes))
                 .put("claimBytes", claimBytes)
         }
         bridge.handle("getSettings") {
