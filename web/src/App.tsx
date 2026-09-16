@@ -13,7 +13,7 @@ import { PositionSheet } from './components/PositionSheet';
 import { LocateButton, type FollowMode } from './components/LocateButton';
 import { useLongPressViseur } from './map/useLongPressViseur';
 import { useWaypoints } from './waypoints/useWaypoints';
-import { useLocation } from './location/useLocation';
+import { isStale, useLocation } from './location/useLocation';
 import { createWaypoint, defaultWaypointName, type Waypoint } from './waypoints/waypointStore';
 import { callNative, onNative } from './bridge/bridge';
 import { distanceMeters, type LatLon } from './geo/geo';
@@ -36,6 +36,7 @@ export function App() {
   const waypoints = useWaypoints();
   const location = useLocation();
   const fix = location.fix;
+  const stale = isStale(fix, location.running);
 
   const openCreateSheet = useCallback((lngLat: LngLat) => {
     setSheet({ kind: 'create', position: { latitude: lngLat.lat, longitude: lngLat.lng }, defaultName: defaultWaypointName() });
@@ -60,7 +61,11 @@ export function App() {
   useEffect(() => {
     if (!map) return;
     const onDragStart = (event: { originalEvent?: unknown }) => {
-      if (event.originalEvent) setFollowMode('free');
+      if (event.originalEvent) {
+        setFollowMode('free');
+        // Sinon un centrage en attente (tap sur ◎ avant tout fix) rattraperait le glissé au fix suivant.
+        setCenterOnNextFix(false);
+      }
     };
     map.on('dragstart', onDragStart);
     return () => {
@@ -131,7 +136,7 @@ export function App() {
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <MapView onMapReady={setMap} />
         <GpsBadge location={location} />
-        {map && <PositionLayer map={map} fix={fix} onSelect={() => setSheet({ kind: 'position' })} />}
+        {map && <PositionLayer map={map} fix={fix} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
         {map && <WaypointMarkers map={map} waypoints={waypoints} onSelect={(id) => setSheet({ kind: 'waypoint', id })} />}
         {viseur && <Viseur viseur={viseur} />}
         <LocateButton mode={followMode} onPress={pressLocate} />

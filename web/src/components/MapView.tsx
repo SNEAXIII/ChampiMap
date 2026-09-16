@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Map as MapLibreMap } from 'maplibre-gl';
+import { AttributionControl, Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { ignStyle, START_CENTER, START_ZOOM } from '../map/ign';
 
@@ -20,8 +20,11 @@ export function MapView({ onMapReady }: Props) {
       maxZoom: 20,
       // Carte raster vue de dessus : l'inclinaison ne sert à rien et charge des chunks lointains.
       maxPitch: 0,
-      attributionControl: { compact: true },
+      // Contrôle par défaut désactivé : on l'ajoute nous-mêmes en bas à gauche pour laisser
+      // le bouton ◎ (bas à droite) libre.
+      attributionControl: false,
     });
+    map.addControl(new AttributionControl({ compact: true }), 'bottom-left');
     // Mention IGN minime : repliée dès le départ.
     map.once('load', () => {
       const attribution = container.querySelector('.maplibregl-ctrl-attrib');

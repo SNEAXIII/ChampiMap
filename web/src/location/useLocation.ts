@@ -9,6 +9,14 @@ export type LocationState = {
   start: () => void;
 };
 
+// Une position plus vieille que ce seuil est considérée périmée (pas de nouveau fix depuis trop longtemps).
+export const STALE_MS = 60_000;
+
+/** Fix périmé : soit trop vieux, soit le GPS est arrêté (dernier fix connu mais plus suivi). */
+export function isStale(fix: LocationFix | null, running: boolean): boolean {
+  return fix !== null && (!running || Date.now() - fix.time > STALE_MS);
+}
+
 /** Position GPS fournie par Android (ou par le navigateur du PC). Démarre le GPS au montage. */
 export function useLocation(): LocationState {
   const [fix, setFix] = useState<LocationFix | null>(null);

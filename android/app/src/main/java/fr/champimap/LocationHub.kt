@@ -18,7 +18,8 @@ object LocationHub {
     @Volatile var lastFix: Location? = null
         private set
 
-    @Volatile var satellites: Int = 0
+    // null tant qu'aucun statut GNSS réel n'a été reçu (mode approximatif, ou avant le premier callback).
+    @Volatile var satellites: Int? = null
         private set
 
     @Volatile var running: Boolean = false
@@ -49,6 +50,9 @@ object LocationHub {
     }
 
     fun publishSatellites(count: Int) {
+        // Évite de spammer les listeners (et l'émission d'événements côté web) à chaque callback GNSS
+        // quand le nombre de satellites utilisés n'a pas bougé.
+        if (satellites == count) return
         satellites = count
         listeners.forEach { it.onSatellites(count) }
     }

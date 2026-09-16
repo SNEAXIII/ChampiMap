@@ -48,7 +48,12 @@ class LocationService : Service() {
         }
     }
 
-    private val onVisibilityChanged: (Boolean) -> Unit = { requestUpdates() }
+    private val onVisibilityChanged: (Boolean) -> Unit = { visible ->
+        requestUpdates()
+        // Le statut GNSS brut n'intéresse que l'app au premier plan (affichage du badge) : on évite de
+        // réveiller inutilement le récepteur GNSS pendant que l'app est en arrière-plan.
+        if (visible) registerGnssStatus() else unregisterGnssStatus()
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -87,7 +92,7 @@ class LocationService : Service() {
             started = true
             LocationHub.addVisibilityListener(onVisibilityChanged)
             requestUpdates()
-            registerGnssStatus()
+            if (LocationHub.appVisible) registerGnssStatus()
             LocationHub.setRunning(true)
         }
         return START_NOT_STICKY
@@ -100,7 +105,7 @@ class LocationService : Service() {
     override fun onDestroy() {
         if (started) {
             fused.removeLocationUpdates(locationCallback)
-            locationManager.unregisterGnssStatusCallback(gnssCallback)
+            unregisterGnssStatus()
             LocationHub.removeVisibilityListener(onVisibilityChanged)
             // Le nombre de satellites n'a plus de sens une fois le GPS arrêté.
             LocationHub.publishSatellites(0)
@@ -134,6 +139,11 @@ class LocationService : Service() {
         } catch (e: SecurityException) {
             // Idem : nombre de satellites inconnu, pas bloquant.
         }
+    }
+
+    // Sûr à appeler même si le callback n'était pas enregistré (permission absente, déjà en arrière-plan).
+    private fun unregisterGnssStatus() {
+        locationManager.unregisterGnssStatusCallback(gnssCallback)
     }
 
     private fun startInForeground() {

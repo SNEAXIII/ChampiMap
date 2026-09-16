@@ -54,6 +54,9 @@ export function useLongPressViseur(map: MapLibreMap | null, onRelease: (lngLat: 
     };
 
     const onTouchStart = (event: TouchEvent) => {
+      // Un doigt posé sur un marqueur (point bleu, waypoint) doit pouvoir glisser la carte normalement,
+      // pas déclencher l'appui long de création de waypoint.
+      if ((event.target as Element | null)?.closest('.maplibregl-marker')) return;
       lastTouchAt = Date.now();
       if (event.touches.length !== 1) {
         reset();

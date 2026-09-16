@@ -13,7 +13,8 @@ export type BridgeMethods = {
 export type BridgeEvents = {
   back: null;
   location: LocationFix;
-  satellites: { count: number };
+  // null en mode approximatif (permission FINE non accordée) : pas de statut GNSS disponible.
+  satellites: { count: number | null };
   locationState: { running: boolean; permissionDenied: boolean };
 };
 

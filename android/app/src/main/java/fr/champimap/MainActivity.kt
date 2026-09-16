@@ -200,15 +200,23 @@ class MainActivity : ComponentActivity() {
     // La page vient peut-être de (re)charger, ou de revenir au premier plan : on lui renvoie ce qu'on
     // sait déjà (LocationHub.running reste à false si startLocationService a échoué ci-dessus).
     private fun resyncLocationState() {
-        LocationHub.lastFix?.let { bridge.emit("location", it.toJson()) }
-        bridge.emit("satellites", JSONObject().put("count", LocationHub.satellites))
+        // Un dernier fix trop vieux (app restée en arrière-plan longtemps, GPS arrêté depuis un moment)
+        // n'est pas renvoyé : la page affiche alors « GPS arrêté » plutôt qu'une position trompeuse.
+        LocationHub.lastFix?.let { fix ->
+            if (System.currentTimeMillis() - fix.time <= STALE_RESYNC_MS) bridge.emit("location", fix.toJson())
+        }
+        bridge.emit("satellites", JSONObject().put("count", LocationHub.satellites ?: JSONObject.NULL))
         emitLocationState()
     }
 
     private fun emitLocationState() {
         bridge.emit(
             "locationState",
-            JSONObject().put("running", LocationHub.running).put("permissionDenied", locationPermissionDenied),
+            JSONObject()
+                .put("running", LocationHub.running)
+                // Refusée seulement si toujours refusée en pratique : sinon (accordée entre-temps dans
+                // les réglages système) on ne colle pas un refus obsolète au badge.
+                .put("permissionDenied", locationPermissionDenied && !LocationService.hasLocationPermission(this)),
         )
     }
 
@@ -264,6 +272,9 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+
+        // Au-delà, un dernier fix renvoyé au resync serait trompeur (voir resyncLocationState).
+        private const val STALE_RESYNC_MS = 10 * 60 * 1000L
 
         // Parsée une seule fois : réutilisée à chaque navigation.
         private val webOriginUri: Uri = Uri.parse(BuildConfig.WEB_ORIGIN)
