@@ -89,14 +89,25 @@ export function ClaimOverlays({ map, claims }: Props) {
       return;
     }
     let cancelled = false;
+    // Des rafraîchissements successifs (moveend rapprochés) peuvent répondre dans le désordre :
+    // seule la dernière requête lancée a le droit de repeindre le brouillard.
+    let generation = 0;
     const refresh = async () => {
+      const current = ++generation;
       const view = regionsInView(map.getBounds());
       if (map.getZoom() < OFFLINE_FOG_MIN_ZOOM || regionCount(view) > MAX_FOG_REGIONS) {
+        if (cancelled || current !== generation) return;
         fogSource()?.setData(EMPTY);
         return;
       }
-      const available = new Set((await callNative('getAvailableRegions', view)).map(([x, y]) => `${x}:${y}`));
-      if (cancelled) return;
+      let available: Set<string>;
+      try {
+        available = new Set((await callNative('getAvailableRegions', view)).map(([x, y]) => `${x}:${y}`));
+      } catch (error) {
+        console.warn('getAvailableRegions a échoué, brouillard hors ligne inchangé', error);
+        return;
+      }
+      if (cancelled || current !== generation) return;
       const covered = (x: number, y: number) =>
         available.has(`${x}:${y}`) ||
         claims.some((claim) => claim.status === 'complete' && x >= claim.xMin && x <= claim.xMax && y >= claim.yMin && y <= claim.yMax);
