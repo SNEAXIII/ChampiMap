@@ -71,6 +71,9 @@ class DownloadService : Service() {
     private fun download(claim: Claim) {
         val total = ChunkMath.countChunksOfRegions(claim.xMin, claim.yMin, claim.xMax, claim.yMax)
         var failedPasses = 0
+        // -1 : impossible en vrai (failures ne peut être négatif), pour que la première passe en échec compte
+        // toujours comme la 1ère (cf. règle ci-dessous).
+        var previousFailures = -1
         while (!stopped && store.claimExists(claim.id)) {
             waitForNetwork(claim, total)
             if (stopped || !store.claimExists(claim.id)) break
@@ -82,14 +85,38 @@ class DownloadService : Service() {
                 onChunk = { publish(claim, done.incrementAndGet(), total, waitingForNetwork = false) },
             )
             if (result.cancelled) continue // passe interrompue (réseau perdu, zone supprimée ou service arrêté)
-            // Des chunks hors couverture IGN échouent toujours : on n'insiste pas au-delà de 3 passes.
-            if (result.failures == 0 || ++failedPasses >= MAX_FAILED_PASSES) {
+            if (result.failures == 0) {
                 store.setClaimStatus(claim.id, Claim.COMPLETE)
                 break
             }
+            // Une passe avec échecs ne compte pour la limite que si son nombre d'échecs n'a pas baissé par
+            // rapport à la précédente : tant qu'il baisse, on progresse encore (des chunks différents bloquent
+            // à chaque passe, probablement des erreurs transitoires) ; seules des passes qui stagnent ou
+            // empirent d'affilée indiquent une couverture IGN manquante persistante. Une baisse relance le
+            // compteur à 1 (la passe qui suit une amélioration recompte comme une 1ère passe en échec).
+            failedPasses = if (result.failures >= previousFailures) failedPasses + 1 else 1
+            previousFailures = result.failures
+            if (failedPasses >= MAX_FAILED_PASSES) {
+                store.setClaimStatus(claim.id, Claim.COMPLETE)
+                break
+            }
+            // Échecs non nuls et passe non annulée : probablement des erreurs transitoires (timeout, 429/5xx,
+            // IO, disque plein) plutôt qu'une couverture IGN manquante — on marque une pause avant de retenter,
+            // par petits pas pour rester interruptible (arrêt du service ou suppression de la zone en cours de
+            // pause). waitForNetwork() est réappelé au tour suivant par la boucle si le réseau est aussi tombé.
+            pauseBeforeRetry(claim)
         }
         DownloadHub.forget(claim.id)
         DownloadHub.publishClaimsChanged()
+    }
+
+    private fun pauseBeforeRetry(claim: Claim) {
+        var remaining = RETRY_PAUSE_MS
+        while (remaining > 0 && !stopped && store.claimExists(claim.id)) {
+            val step = minOf(RETRY_PAUSE_STEP_MS, remaining)
+            Thread.sleep(step)
+            remaining -= step
+        }
     }
 
     private fun waitForNetwork(claim: Claim, total: Long) {
@@ -142,9 +169,19 @@ class DownloadService : Service() {
         private const val NOTIFICATION_ID = 2
         private const val NETWORK_POLL_MS = 5_000L
         private const val MAX_FAILED_PASSES = 3
+        private const val RETRY_PAUSE_MS = 60_000L
+        private const val RETRY_PAUSE_STEP_MS = 1_000L
 
         fun start(context: Context) {
-            context.startForegroundService(Intent(context, DownloadService::class.java))
+            try {
+                context.startForegroundService(Intent(context, DownloadService::class.java))
+            } catch (e: IllegalStateException) {
+                // API 31+ : ForegroundServiceStartNotAllowedException si l'app est passée en arrière-plan entre
+                // l'action de l'utilisateur et cet appel (ex. verrouillage de l'écran juste après avoir lancé un
+                // téléchargement). Le claim reste "downloading" en base ; il sera repris via la relance faite à
+                // l'ouverture de MainActivity au prochain lancement de l'app.
+                Log.w(TAG, "Démarrage du service de téléchargement refusé (app en arrière-plan)", e)
+            }
         }
     }
 }
