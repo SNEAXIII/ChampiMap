@@ -94,6 +94,10 @@ export function ClaimSelection({ map, onDone }: Props) {
   useEffect(() => {
     const container = map.getCanvasContainer();
     let anchor: { x: number; y: number } | null = null;
+    // Un doigt qui n'a jamais bougé (tap) sélectionne sa case ; un deuxième doigt (pincer/déplacer) annule
+    // l'ancre sans toucher au rectangle déjà tracé, sinon son touchstart (touches.length passe à 1 avant que
+    // le deuxième doigt ne soit vu) effacerait le rectangle en cours.
+    let touchDragged = false;
 
     const regionUnder = (clientX: number, clientY: number) => {
       const box = container.getBoundingClientRect();
@@ -109,11 +113,27 @@ export function ClaimSelection({ map, onDone }: Props) {
     };
 
     const onTouchStart = (event: TouchEvent) => {
-      if (event.touches.length === 1) start(event.touches[0].clientX, event.touches[0].clientY);
-      else anchor = null;
+      if (event.touches.length === 1) {
+        anchor = regionUnder(event.touches[0].clientX, event.touches[0].clientY);
+        touchDragged = false;
+      } else {
+        // Deuxième doigt : on ne dessine plus au doigt levé, le rectangle existant est laissé tel quel.
+        anchor = null;
+      }
     };
     const onTouchMove = (event: TouchEvent) => {
-      if (event.touches.length === 1) extend(event.touches[0].clientX, event.touches[0].clientY);
+      if (event.touches.length === 1 && anchor) {
+        touchDragged = true;
+        extend(event.touches[0].clientX, event.touches[0].clientY);
+      }
+    };
+    const onTouchEnd = (event: TouchEvent) => {
+      // Tap (pas de glissé, pas de deuxième doigt) : sélectionne la case sous le doigt.
+      if (anchor && !touchDragged) setRect(rectFromRegions(anchor, anchor));
+      if (event.touches.length === 0) {
+        anchor = null;
+        touchDragged = false;
+      }
     };
     const onMouseDown = (event: MouseEvent) => {
       if (event.button === 0) start(event.clientX, event.clientY);
@@ -121,23 +141,23 @@ export function ClaimSelection({ map, onDone }: Props) {
     const onMouseMove = (event: MouseEvent) => {
       if (event.buttons & 1) extend(event.clientX, event.clientY);
     };
-    const stop = () => {
+    const onMouseUp = () => {
       anchor = null;
     };
 
     container.addEventListener('touchstart', onTouchStart, { passive: true });
     container.addEventListener('touchmove', onTouchMove, { passive: true });
-    container.addEventListener('touchend', stop);
+    container.addEventListener('touchend', onTouchEnd);
     container.addEventListener('mousedown', onMouseDown);
     container.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', stop);
+    window.addEventListener('mouseup', onMouseUp);
     return () => {
       container.removeEventListener('touchstart', onTouchStart);
       container.removeEventListener('touchmove', onTouchMove);
-      container.removeEventListener('touchend', stop);
+      container.removeEventListener('touchend', onTouchEnd);
       container.removeEventListener('mousedown', onMouseDown);
       container.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', stop);
+      window.removeEventListener('mouseup', onMouseUp);
     };
   }, [map]);
 

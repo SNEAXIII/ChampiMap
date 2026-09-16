@@ -68,6 +68,8 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 - [ ] F1 Mise à jour depuis la phase 4 : l'app démarre sans crash (migration `chunks.db` v1 → v2) ; `logcat` (AndroidRuntime, SQLite) propre
 - [ ] F2 Zoom niveau 11 sur une zone jamais vue, tap « Zones hors ligne » : la grille apparaît
 - [ ] F3 Un doigt sur ~2 cases : rectangle vert aligné sur la grille, « 2 cases · ≈ N Mo » ; la carte n'a pas bougé
+- [ ] F3b Après avoir tracé un rectangle, poser un second doigt (pincer ou déplacer à deux doigts) : le rectangle reste inchangé, la carte zoome/bouge normalement
+- [ ] F3c Un tap (sans glisser) sur une case : sélectionne cette case seule (« 1 case · ≈ N Mo »)
 - [ ] F4 [Télécharger] → nom « Zone du JJ/MM » → [Télécharger] : le mode sélection se ferme, la notification « Téléchargement des zones hors ligne » montre un pourcentage qui augmente
 - [ ] F5 App en arrière-plan (Home) pendant 60 s : la notification progresse toujours
 - [ ] F6 Mode avion pendant le téléchargement : la notification passe à « en attente du réseau » ; désactiver le mode avion : la progression reprend
