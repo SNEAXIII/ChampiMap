@@ -12,12 +12,21 @@ export function SettingsPanel({ onClose }: Props) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   useEffect(() => {
-    callNative('getStorageStats', {})
-      .then(setStats)
-      .catch((error: unknown) => {
-        console.warn(error);
-        setStatsUnavailable(true);
-      });
+    const fetchStats = () =>
+      callNative('getStorageStats', {})
+        .then(setStats)
+        .catch((error: unknown) => {
+          console.warn(error);
+          setStatsUnavailable(true);
+        });
+    fetchStats();
+    // Pré-téléchargement et nettoyage tournent en tâche de fond : rafraîchir pendant que le panneau est
+    // ouvert évite d'avoir à le refermer puis le rouvrir pour voir le stockage évoluer.
+    const interval = setInterval(fetchStats, 3_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     // Échec silencieux (hors console) : la case reste désactivée (settings reste null), ce qui est le
     // comportement voulu quand on ne connaît pas l'état réel du réglage.
     callNative('getSettings', {}).then(setSettings).catch(console.warn);
@@ -71,7 +80,8 @@ export function SettingsPanel({ onClose }: Props) {
             <span>
               Pré-télécharger la carte autour de moi aussi en données mobiles
               <span className="block text-sm text-gray-500">
-                En Wi-Fi, c'est automatique. Compter 100 à 250 Mo à chaque nouveau secteur.
+                En Wi-Fi, c'est automatique quand la position est suivie. Compter 100 à 250 Mo à chaque nouveau
+                secteur.
               </span>
             </span>
           </label>

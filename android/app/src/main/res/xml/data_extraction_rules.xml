@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Défense en profondeur : allowBackup="false" désactive déjà toute sauvegarde/transfert,
-     mais chunks.db (jusqu'à 500 Mo+) ne doit dans aucun cas être inclus si ça changeait. -->
+<!-- allowBackup="false" coupe la sauvegarde cloud, mais pas le transfert d'appareil à appareil (Android 12+,
+     targetSdk ≥ 31, indépendant d'allowBackup) : c'est l'exclusion <device-transfer> ci-dessous, pas
+     allowBackup, qui protège réellement chunks.db (jusqu'à 500 Mo+) dans ce cas. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="database" />
