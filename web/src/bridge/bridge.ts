@@ -1,12 +1,17 @@
 import { createFakeNative } from './fakeNative';
 
 export type LocationFix = { latitude: number; longitude: number; accuracy: number | null; time: number };
+export type StorageStats = { cacheBytes: number; cacheTargetBytes: number; claimBytes: number };
+export type AppSettings = { prefetchOnMobileData: boolean };
 
 /** Méthodes exposées par Kotlin : paramètres et résultat. */
 export type BridgeMethods = {
   setBackEnabled: { params: { enabled: boolean }; result: null };
   startLocation: { params: Record<string, never>; result: null };
   setKeepScreenOn: { params: { on: boolean }; result: null };
+  getStorageStats: { params: Record<string, never>; result: StorageStats };
+  getSettings: { params: Record<string, never>; result: AppSettings };
+  setPrefetchOnMobileData: { params: { on: boolean }; result: null };
 };
 
 /** Événements poussés par Kotlin. */

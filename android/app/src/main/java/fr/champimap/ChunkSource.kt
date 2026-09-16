@@ -11,9 +11,11 @@ object ChunkSource {
     private const val CONNECT_TIMEOUT_MS = 5_000
     private const val READ_TIMEOUT_MS = 8_000
 
-    // Plafond global de requêtes IGN simultanées (contrainte du plan) : partagé par la navigation
-    // (ChunkPathHandler, threads WebView non bornés) et les futurs téléchargements en lot (ChunkDownloader).
-    private val concurrencyLimit = Semaphore(4)
+    // Plafond global de requêtes IGN simultanées (contrainte du plan), réparti en deux moitiés pour que les
+    // téléchargements de fond (ChunkDownloader, pré-téléchargement puis claims) ne puissent jamais affamer les
+    // tuiles à l'écran (ChunkPathHandler, threads WebView non bornés) : 2 + 2 = 4 requêtes IGN au total.
+    private val interactiveLimit = Semaphore(2)
+    private val backgroundLimit = Semaphore(2)
 
     private fun url(id: ChunkId) =
         "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0" +
@@ -21,8 +23,9 @@ object ChunkSource {
             "&TILEMATRIX=${id.z}&TILEROW=${id.y}&TILECOL=${id.x}&FORMAT=image/png"
 
     /** Octets PNG du chunk, ou null (hors couverture, erreur réseau, réponse inattendue). */
-    fun download(id: ChunkId): ByteArray? {
-        concurrencyLimit.acquire()
+    fun download(id: ChunkId, interactive: Boolean = true): ByteArray? {
+        val limit = if (interactive) interactiveLimit else backgroundLimit
+        limit.acquire()
         try {
             var connection: HttpURLConnection? = null
             return try {
@@ -41,7 +44,7 @@ object ChunkSource {
                 connection?.disconnect()
             }
         } finally {
-            concurrencyLimit.release()
+            limit.release()
         }
     }
 }

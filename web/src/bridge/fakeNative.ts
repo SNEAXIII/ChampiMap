@@ -12,6 +12,12 @@ export function emitFake(event: string, payload: unknown): void {
 const handlers: Record<string, FakeHandler> = {
   setBackEnabled: () => null,
   setKeepScreenOn: () => null,
+  getStorageStats: () => ({ cacheBytes: 0, cacheTargetBytes: 500 * 1024 * 1024, claimBytes: 0 }),
+  getSettings: () => ({ prefetchOnMobileData: localStorage.getItem('prefetchOnMobileData') === 'true' }),
+  setPrefetchOnMobileData: (params) => {
+    localStorage.setItem('prefetchOnMobileData', String(params.on === true));
+    return null;
+  },
   startLocation: () => {
     if (watchId !== null || !('geolocation' in navigator)) return null;
     watchId = navigator.geolocation.watchPosition(

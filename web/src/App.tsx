@@ -7,6 +7,7 @@ import { CreateWaypointSheet } from './components/CreateWaypointSheet';
 import { WaypointSheet } from './components/WaypointSheet';
 import { WaypointList } from './components/WaypointList';
 import { BottomBar } from './components/BottomBar';
+import { SettingsPanel } from './components/SettingsPanel';
 import { GpsBadge } from './components/GpsBadge';
 import { PositionLayer } from './components/PositionLayer';
 import { PositionSheet } from './components/PositionSheet';
@@ -25,7 +26,7 @@ export type Sheet =
   | { kind: 'position' }
   | null;
 
-export type Panel = 'waypoints' | null;
+export type Panel = 'waypoints' | 'settings' | null;
 
 export function App() {
   const [map, setMap] = useState<MapLibreMap | null>(null);
@@ -171,8 +172,15 @@ export function App() {
         {panel === 'waypoints' && (
           <WaypointList waypoints={waypoints} reference={listReference} onPick={showWaypoint} onClose={() => setPanel(null)} />
         )}
+        {panel === 'settings' && <SettingsPanel onClose={() => setPanel(null)} />}
       </div>
-      <BottomBar onOpenWaypoints={openWaypointList} />
+      <BottomBar
+        onOpenWaypoints={openWaypointList}
+        onOpenSettings={() => {
+          setSheet(null);
+          setPanel('settings');
+        }}
+      />
     </main>
   );
 }

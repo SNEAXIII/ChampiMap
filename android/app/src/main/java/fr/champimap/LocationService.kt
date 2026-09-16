@@ -35,10 +35,13 @@ class LocationService : Service() {
     private lateinit var fused: FusedLocationProviderClient
     private lateinit var locationManager: LocationManager
     private var started = false
+    private val prefetcher by lazy { Prefetcher(this) }
 
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
-            result.lastLocation?.let(LocationHub::publishFix)
+            val fix = result.lastLocation ?: return
+            LocationHub.publishFix(fix)
+            prefetcher.onFix(fix)
         }
     }
 

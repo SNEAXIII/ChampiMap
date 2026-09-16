@@ -1,5 +1,6 @@
 type Props = {
   onOpenWaypoints: () => void;
+  onOpenSettings: () => void;
 };
 
 function BarButton({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
@@ -11,10 +12,11 @@ function BarButton({ icon, label, onClick }: { icon: string; label: string; onCl
   );
 }
 
-export function BottomBar({ onOpenWaypoints }: Props) {
+export function BottomBar({ onOpenWaypoints, onOpenSettings }: Props) {
   return (
     <nav className="flex border-t border-gray-200 bg-white">
       <BarButton icon="📍" label="Waypoints" onClick={onOpenWaypoints} />
+      <BarButton icon="⚙️" label="Paramètres" onClick={onOpenSettings} />
     </nav>
   );
 }

@@ -126,6 +126,20 @@ class MainActivity : ComponentActivity() {
             }
             null
         }
+        bridge.handle("getStorageStats") {
+            val store = ChunkStore.get(this)
+            JSONObject()
+                .put("cacheBytes", store.totalBytes())
+                .put("cacheTargetBytes", store.cacheTargetBytes())
+                .put("claimBytes", 0)
+        }
+        bridge.handle("getSettings") {
+            JSONObject().put("prefetchOnMobileData", AppSettings.prefetchOnMobileData(this))
+        }
+        bridge.handle("setPrefetchOnMobileData") { params ->
+            AppSettings.setPrefetchOnMobileData(this, params.getBoolean("on"))
+            null
+        }
         bridge.install()
         onBackPressedDispatcher.addCallback(this, backCallback)
 
