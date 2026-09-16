@@ -13,7 +13,8 @@ import { PositionSheet } from './components/PositionSheet';
 import { LocateButton, type FollowMode } from './components/LocateButton';
 import { useLongPressViseur } from './map/useLongPressViseur';
 import { useWaypoints } from './waypoints/useWaypoints';
-import { isStale, useLocation } from './location/useLocation';
+import { useLocation } from './location/useLocation';
+import { useStale } from './location/useStale';
 import { createWaypoint, defaultWaypointName, type Waypoint } from './waypoints/waypointStore';
 import { callNative, onNative } from './bridge/bridge';
 import { distanceMeters, type LatLon } from './geo/geo';
@@ -36,7 +37,7 @@ export function App() {
   const waypoints = useWaypoints();
   const location = useLocation();
   const fix = location.fix;
-  const stale = isStale(fix, location.running);
+  const stale = useStale(fix, location.running);
 
   const openCreateSheet = useCallback((lngLat: LngLat) => {
     setSheet({ kind: 'create', position: { latitude: lngLat.lat, longitude: lngLat.lng }, defaultName: defaultWaypointName() });
@@ -135,7 +136,7 @@ export function App() {
     <main className="flex h-full w-full flex-col">
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <MapView onMapReady={setMap} />
-        <GpsBadge location={location} />
+        <GpsBadge location={location} stale={stale} />
         {map && <PositionLayer map={map} fix={fix} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
         {map && <WaypointMarkers map={map} waypoints={waypoints} onSelect={(id) => setSheet({ kind: 'waypoint', id })} />}
         {viseur && <Viseur viseur={viseur} />}

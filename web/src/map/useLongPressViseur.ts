@@ -54,14 +54,16 @@ export function useLongPressViseur(map: MapLibreMap | null, onRelease: (lngLat: 
     };
 
     const onTouchStart = (event: TouchEvent) => {
-      // Un doigt posé sur un marqueur (point bleu, waypoint) doit pouvoir glisser la carte normalement,
-      // pas déclencher l'appui long de création de waypoint.
-      if ((event.target as Element | null)?.closest('.maplibregl-marker')) return;
-      lastTouchAt = Date.now();
       if (event.touches.length !== 1) {
         reset();
         return;
       }
+      // Avant le early-return marqueur : Android déclenche aussi `contextmenu` pour l'appui long sur un
+      // marqueur, il faut que la garde du handler contextmenu voie ce touchstart.
+      lastTouchAt = Date.now();
+      // Un doigt posé sur un marqueur (point bleu, waypoint) doit pouvoir glisser la carte normalement,
+      // pas déclencher l'appui long de création de waypoint.
+      if ((event.target as Element | null)?.closest('.maplibregl-marker')) return;
       start = toLocal(event.touches[0]);
       timer = window.setTimeout(() => {
         if (!start) return;
