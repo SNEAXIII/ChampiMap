@@ -75,3 +75,12 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 - [ ] F6 Mode avion pendant le téléchargement : la notification passe à « en attente du réseau » ; désactiver le mode avion : la progression reprend
 - [ ] F7 Forcer l'arrêt de l'app pendant le téléchargement puis la relancer : la notification réapparaît, la progression continue sans repartir de zéro
 - [ ] F8 Téléchargement terminé : mode avion, relancer, zoomer au niveau 17 dans la zone → carte nette ; remettre le mode avion à OFF (`airplane_mode_on` = `0`)
+
+### Task 2 — liste des zones
+- [ ] G1 Tap « Zones hors ligne » : la liste montre la zone de la Task 1, avec « Complète », sa taille (Mo) et sa date
+- [ ] G2 [+ Nouvelle zone hors ligne] : le mode sélection s'ouvre ; créer une zone d'une case ; rouvrir la liste : la nouvelle zone affiche un pourcentage qui augmente (rouvrir après 10 s)
+- [ ] G3 [Renommer] → `Forêt` → OK : le nom change
+- [ ] G4 [Voir sur la carte] : la liste se ferme et la carte cadre la zone
+- [ ] G5 [Supprimer] → [Confirmer] sur la zone d'une case : elle disparaît ; si elle était en cours, la notification s'arrête sous ~5 s
+- [ ] G6 Paramètres : « Zones hors ligne : N Mo » correspond à peu près à la somme des tailles affichées
+- [ ] G7 Retour Android depuis la liste : la liste se ferme
