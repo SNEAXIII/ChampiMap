@@ -62,7 +62,16 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 - [ ] D19 Hors ligne au zoom 17 sur une zone où seuls z15-16 ont été vus : tuile floue affichée, jamais beige
 
 ## Phase 5 — zones hors ligne (à vérifier une fois la phase implémentée)
-- [ ] E1 Supprimer une zone hors ligne : la taille de `chunks.db` (`run-as fr.champimap ls -la databases/`) diminue
+- [ ] E1 Supprimer une zone hors ligne : ses chunks redeviennent du cache ordinaire (pas de suppression immédiate, `chunks.db` ne diminue que si le cache dépasse ensuite sa cible) ; la zone disparaît bien de la liste et de la carte
+- [ ] E2 Zoomer sur des cases déjà vues en ligne (jamais téléchargées en zone) : le brouillard hors ligne ne les recouvre pas (régression C1 — `availableRegions`)
+- [ ] E3 Wi-Fi connecté mais sans accès Internet (portail captif) : le brouillard hors ligne apparaît-il à tort ? (limite connue de `navigator.onLine`, à documenter si oui)
+- [ ] E4 Supprimer la zone en cours de téléchargement alors qu'une autre est en attente : cette dernière démarre
+- [ ] E5 Tracer une grande zone (> 1 Go projeté) : l'avertissement « plus de 1 Go » apparaît avant de lancer le téléchargement
+- [ ] E6 Zone couvrant un secteur hors couverture IGN (erreurs persistantes) : elle n'est pas marquée « Complète » dès la première passe en échec, seulement après des passes qui stagnent/empirent d'affilée (I1)
+- [ ] E7 Appuyer sur Accueil juste après le lancement de l'app avec une zone en cours de téléchargement : pas de crash (I2 — `ForegroundServiceStartNotAllowedException`)
+- [ ] E8 Double-tap rapide sur [Télécharger] lors de la création d'une zone : une seule zone créée (I3)
+- [ ] E9 Poser un doigt puis un second avec un léger tremblement du premier avant qu'il ne se pose (pincer/zoomer) : le rectangle déjà tracé reste inchangé (M2)
+- [ ] E10 Sous le niveau de zoom de la grille (9) : glisser un doigt ou la souris ne trace aucun rectangle ; message « Zoome pour afficher la grille des cases. » affiché (M3)
 
 ### Task 1 — création et téléchargement
 - [ ] F1 Mise à jour depuis la phase 4 : l'app démarre sans crash (migration `chunks.db` v1 → v2) ; `logcat` (AndroidRuntime, SQLite) propre
