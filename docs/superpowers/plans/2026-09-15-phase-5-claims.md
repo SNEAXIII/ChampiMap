@@ -469,15 +469,15 @@ class DownloadService : Service() {
             waitForNetwork(claim, total)
             if (!store.claimExists(claim.id)) break
             val done = AtomicLong()
-            val failures = ChunkDownloader.downloadMissing(
+            val result = ChunkDownloader.downloadMissing(
                 this,
                 ChunkMath.chunksOfRegions(claim.xMin, claim.yMin, claim.xMax, claim.yMax),
                 shouldContinue = { Network.isOnline(this) && store.claimExists(claim.id) },
                 onChunk = { publish(claim, done.incrementAndGet(), total, waitingForNetwork = false) },
             )
-            if (done.get() < total) continue // passe interrompue (réseau perdu ou zone supprimée)
+            if (result.cancelled) continue // passe interrompue (réseau perdu ou zone supprimée)
             // Des chunks hors couverture IGN échouent toujours : on n'insiste pas au-delà de 3 passes.
-            if (failures == 0 || ++failedPasses >= MAX_FAILED_PASSES) {
+            if (result.failures == 0 || ++failedPasses >= MAX_FAILED_PASSES) {
                 store.setClaimStatus(claim.id, Claim.COMPLETE)
                 break
             }

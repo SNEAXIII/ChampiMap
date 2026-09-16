@@ -513,7 +513,8 @@ git commit -m "feat: cache SQLite des chunks servi à la carte"
 **Interfaces:**
 - Consumes: `ChunkStore.get/contains/write/totalBytes`, `ChunkSource.download`, `ChunkMath`, `Network` (Task 1), `LocationHub.publishFix`/`LocationHub.running` et le callback de `LocationService` (phase 3), `NativeBridge.handle` (phase 2), `callNative`, `emitFake`, `Panel`.
 - Produces:
-  - `object ChunkDownloader { const val PARALLEL = 2; fun downloadMissing(context: Context, chunks: Sequence<ChunkId>, shouldContinue: () -> Boolean, onChunk: (ok: Boolean) -> Unit): Int }` : renvoie le nombre d'échecs, appelle `ChunkSource.download(id, interactive = false)`. La phase 5 l'utilise pour les claims.
+  - `data class DownloadResult(val failures: Int, val cancelled: Boolean)` (`cancelled` : `shouldContinue()` est devenu faux avant la fin).
+  - `object ChunkDownloader { const val PARALLEL = 2; fun downloadMissing(context: Context, chunks: Sequence<ChunkId>, shouldContinue: () -> Boolean, onChunk: (ok: Boolean) -> Unit): DownloadResult }` : appelle `ChunkSource.download(id, interactive = false)`, rattrape les exceptions de `ChunkStore` (chunk compté en échec plutôt que de propager). La phase 5 l'utilise pour les claims.
   - `object AppSettings { fun prefetchOnMobileData(context): Boolean; fun setPrefetchOnMobileData(context, on: Boolean) }`.
   - `class Prefetcher(context: Context) { fun onFix(fix: Location) }`.
   - TS `BridgeMethods` + `getStorageStats: { params: Record<string, never>; result: StorageStats }` avec `type StorageStats = { cacheBytes: number; cacheTargetBytes: number; claimBytes: number }` (claimBytes = 0 en phase 4), `getSettings: { params: Record<string, never>; result: AppSettings }` avec `type AppSettings = { prefetchOnMobileData: boolean }`, `setPrefetchOnMobileData: { params: { on: boolean }; result: null }`.
@@ -526,33 +527,51 @@ git commit -m "feat: cache SQLite des chunks servi à la carte"
 package fr.champimap
 
 import android.content.Context
+import android.util.Log
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
+
+/** `cancelled` : `shouldContinue()` est devenu faux avant que tous les chunks n'aient été traités. */
+data class DownloadResult(val failures: Int, val cancelled: Boolean)
 
 object ChunkDownloader {
     /** Moitié du plafond IGN (ChunkSource.backgroundLimit) : ne dispute pas les threads pour rien au-delà. */
     const val PARALLEL = 2
     private const val BATCH = 64
+    private const val TAG = "ChunkDownloader"
 
     /**
-     * Télécharge les chunks absents de la base, 2 à la fois. S'arrête entre deux lots si `shouldContinue()` devient faux.
-     * `onChunk(ok)` est appelé pour chaque chunk traité (déjà présent ou téléchargé = ok). Renvoie le nombre d'échecs.
+     * Télécharge les chunks absents de la base, 2 à la fois. S'arrête entre deux lots si `shouldContinue()` devient
+     * faux (résultat `cancelled = true`). `onChunk(ok)` est appelé pour chaque chunk traité (déjà présent ou
+     * téléchargé = ok).
      */
     fun downloadMissing(
         context: Context,
         chunks: Sequence<ChunkId>,
         shouldContinue: () -> Boolean,
         onChunk: (ok: Boolean) -> Unit,
-    ): Int {
+    ): DownloadResult {
         val store = ChunkStore.get(context)
         val pool = Executors.newFixedThreadPool(PARALLEL)
         val failures = AtomicInteger()
+        var cancelled = false
         try {
             for (batch in chunks.chunked(BATCH)) {
-                if (!shouldContinue()) break
+                if (!shouldContinue()) {
+                    cancelled = true
+                    break
+                }
                 batch.map { id ->
                     pool.submit {
-                        val ok = store.contains(id) || ChunkSource.download(id, interactive = false)?.also { store.write(id, it) } != null
+                        // store.contains/write peut lever (SQLiteFullException, disque plein…) : rattrapé ici plutôt
+                        // que de laisser it.get() (plus bas) relayer une ExecutionException hors de cette fonction,
+                        // ce qui tuerait le thread appelant (le prefetch tourne sans UI pour la rattraper).
+                        val ok = try {
+                            store.contains(id) || ChunkSource.download(id, interactive = false)?.also { store.write(id, it) } != null
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Échec du chunk $id", e)
+                            false
+                        }
                         if (!ok) failures.incrementAndGet()
                         onChunk(ok)
                     }
@@ -561,7 +580,7 @@ object ChunkDownloader {
         } finally {
             pool.shutdown()
         }
-        return failures.get()
+        return DownloadResult(failures.get(), cancelled)
     }
 }
 ```
@@ -593,6 +612,7 @@ package fr.champimap
 
 import android.content.Context
 import android.location.Location
+import android.util.Log
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
@@ -600,28 +620,45 @@ import kotlin.concurrent.thread
 class Prefetcher(context: Context) {
 
     private val appContext = context.applicationContext
-    private val busy = AtomicBoolean(false)
-
-    @Volatile
-    private var lastCompletedRegion: Pair<Int, Int>? = null
 
     fun onFix(fix: Location) {
         val region = ChunkMath.tileX(fix.longitude, ChunkMath.REGION_ZOOM) to ChunkMath.tileY(fix.latitude, ChunkMath.REGION_ZOOM)
-        if (region == lastCompletedRegion || !allowed() || !busy.compareAndSet(false, true)) return
+        // `shouldAttempt` (en mémoire, pas d'I/O) et le CAS de `busy` d'abord, sur le thread appelant (thread
+        // principal de localisation) : `allowed()` (réseau, préférences) attend d'être dans le thread de fond
+        // ci-dessous pour ne rien lire de coûteux sur ce thread.
+        if (!shouldAttempt(region) || !busy.compareAndSet(false, true)) return
         thread(name = "prefetch", isDaemon = true) {
             try {
+                if (!allowed()) return@thread
                 val (x, y) = region
-                val failures = ChunkDownloader.downloadMissing(
+                val result = ChunkDownloader.downloadMissing(
                     appContext,
                     ChunkMath.chunksOfRegions(x - 1, y - 1, x + 1, y + 1),
                     shouldContinue = ::allowed,
                     onChunk = {},
                 )
-                if (failures == 0 && allowed()) lastCompletedRegion = region
+                // Une passe interrompue (réseau perdu, service arrêté) est retentée dès le prochain fix : on ne
+                // retient donc la région que si elle est allée à son terme, avec ou sans échecs.
+                if (!result.cancelled) {
+                    lastRegion = region
+                    lastRegionAt = System.currentTimeMillis()
+                    lastRegionHadFailures = result.failures > 0
+                }
+            } catch (e: Exception) {
+                // Le prefetch tourne sans UI pour rattraper une exception : une exception non gérée ici tuerait
+                // le processus, y compris avec l'app en arrière-plan.
+                Log.w(TAG, "Pré-téléchargement interrompu par une erreur inattendue", e)
             } finally {
                 busy.set(false)
             }
         }
+    }
+
+    /** Même région déjà entièrement téléchargée (sans échec) : rien à refaire. Avec échecs : nouvel essai après [RETRY_AFTER_FAILURE_MS]. */
+    private fun shouldAttempt(region: Pair<Int, Int>): Boolean {
+        if (region != lastRegion) return true
+        if (!lastRegionHadFailures) return false
+        return System.currentTimeMillis() - lastRegionAt > RETRY_AFTER_FAILURE_MS
     }
 
     private fun allowed(): Boolean =
@@ -630,6 +667,25 @@ class Prefetcher(context: Context) {
         LocationHub.running &&
             Network.isOnline(appContext) &&
             (Network.isUnmetered(appContext) || AppSettings.prefetchOnMobileData(appContext))
+
+    private companion object {
+        const val TAG = "Prefetcher"
+        const val RETRY_AFTER_FAILURE_MS = 15 * 60 * 1000L
+
+        // Partagés entre toutes les instances (pas seulement `this` object : LocationService recrée un
+        // Prefetcher à chaque (re)démarrage du service via `by lazy`, alors qu'un thread de pré-téléchargement
+        // de l'instance précédente peut encore tourner) : sinon deux passes pourraient tourner en même temps.
+        val busy = AtomicBoolean(false)
+
+        @Volatile
+        var lastRegion: Pair<Int, Int>? = null
+
+        @Volatile
+        var lastRegionAt: Long = 0L
+
+        @Volatile
+        var lastRegionHadFailures: Boolean = false
+    }
 }
 ```
 
