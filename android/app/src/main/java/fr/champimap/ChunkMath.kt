@@ -20,9 +20,12 @@ object ChunkMath {
         return floor((longitude + 180.0) / 360.0 * n).toInt().coerceIn(0, n - 1)
     }
 
+    /** Limite de la projection Web Mercator : au-delà, tan()/cos() divergent. */
+    private const val MAX_LATITUDE = 85.0511
+
     fun tileY(latitude: Double, zoom: Int): Int {
         val n = 1 shl zoom
-        val rad = Math.toRadians(latitude)
+        val rad = Math.toRadians(latitude.coerceIn(-MAX_LATITUDE, MAX_LATITUDE))
         return floor((1.0 - ln(tan(rad) + 1.0 / cos(rad)) / PI) / 2.0 * n).toInt().coerceIn(0, n - 1)
     }
 
@@ -48,6 +51,7 @@ object ChunkMath {
         (0..MAX_DETAIL_ZOOM).sumOf { z ->
             val xs = rangeAtZoom(xMin, xMax, z)
             val ys = rangeAtZoom(yMin, yMax, z)
-            (xs.last - xs.first + 1).toLong() * (ys.last - ys.first + 1)
+            // Bornes inversées (xMax < xMin ou yMax < yMin) : 0 plutôt qu'un compte négatif.
+            (xs.last - xs.first + 1).coerceAtLeast(0).toLong() * (ys.last - ys.first + 1).coerceAtLeast(0)
         }
 }

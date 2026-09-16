@@ -12,6 +12,8 @@
 
     <application
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
         android:label="Champi Map"
         android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
 

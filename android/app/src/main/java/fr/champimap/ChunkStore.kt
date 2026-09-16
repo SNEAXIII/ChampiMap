@@ -18,9 +18,11 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
+            // `data` en dernier : sinon SQLite pousse `size`/`last_access` sur les pages de débordement
+            // du BLOB, et SUM(size)/le tri par last_access doivent alors parcourir (quasi) tout le fichier.
             "CREATE TABLE chunks (" +
                 "z INTEGER NOT NULL, x INTEGER NOT NULL, y INTEGER NOT NULL, " +
-                "data BLOB NOT NULL, size INTEGER NOT NULL, last_access INTEGER NOT NULL, " +
+                "size INTEGER NOT NULL, last_access INTEGER NOT NULL, data BLOB NOT NULL, " +
                 "PRIMARY KEY (z, x, y))",
         )
         db.execSQL("CREATE INDEX chunks_last_access ON chunks (last_access)")
@@ -73,11 +75,24 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
     @Synchronized
     fun trimCache() {
         val floor = cacheTargetBytes() * 95 / 100
-        while (totalBytes() > floor) {
-            val deleted = writableDatabase.compileStatement(
-                "DELETE FROM chunks WHERE rowid IN (SELECT rowid FROM chunks ORDER BY last_access LIMIT $TRIM_BATCH)",
-            ).executeUpdateDelete()
-            if (deleted == 0) break
+        // Le total est calculé une fois, puis ajusté par lot : appeler totalBytes() (un SUM(size))
+        // à chaque tour, potentiellement des centaines de fois pour vider un gros excédent, est inutile.
+        var total = totalBytes()
+        while (total > floor) {
+            var batchBytes = 0L
+            val rowids = ArrayList<Long>(TRIM_BATCH)
+            writableDatabase.rawQuery(
+                "SELECT rowid, size FROM chunks ORDER BY last_access LIMIT $TRIM_BATCH",
+                null,
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    rowids += cursor.getLong(0)
+                    batchBytes += cursor.getLong(1)
+                }
+            }
+            if (rowids.isEmpty()) break
+            writableDatabase.execSQL("DELETE FROM chunks WHERE rowid IN (${rowids.joinToString(",")})")
+            total -= batchBytes
         }
     }
 

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Défense en profondeur : allowBackup="false" désactive déjà toute sauvegarde/transfert,
+     mais chunks.db (jusqu'à 500 Mo+) ne doit dans aucun cas être inclus si ça changeait. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" />
+    </device-transfer>
+</data-extraction-rules>
