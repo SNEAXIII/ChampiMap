@@ -30,7 +30,7 @@ Le vocabulaire (Chunk, Région, Claim, Brouillard, Cible, Viseur, Cap, Relèveme
   - les claims ne sont jamais supprimés automatiquement.
 - **Pré-téléchargement** : la région de la position + ses 8 voisines. En Wi-Fi uniquement par défaut, interrupteur « aussi en données mobiles » dans Paramètres. Ces chunks vont dans le cache.
 - **Estimation de taille** : moyenne réelle des chunks stockés pour chaque zoom, 70 KB par défaut tant qu'on n'a rien.
-- **Téléchargement** et pré-téléchargement exécutés en Kotlin dans le service (le JS d'une WebView est mis en pause en arrière-plan). Le TS affiche la progression. 4 requêtes IGN au plus : 2 pour l'affichage, 2 pour les téléchargements de fond, User-Agent identifiable. Il continue quand l'app est en arrière-plan (progression dans la notification). Reprise automatique après arrêt ou crash, en recalculant les chunks manquants.
+- **Téléchargement** et pré-téléchargement exécutés en Kotlin dans des services au premier plan (pré-téléchargement dans le service de localisation, zones hors ligne dans un service de téléchargement dédié) (le JS d'une WebView est mis en pause en arrière-plan). Le TS affiche la progression. 4 requêtes IGN au plus : 2 pour l'affichage, 2 pour les téléchargements de fond, User-Agent identifiable. Il continue quand l'app est en arrière-plan (progression dans la notification). Reprise automatique après arrêt ou crash, en recalculant les chunks manquants.
 
 ### Création d'une zone hors ligne
 

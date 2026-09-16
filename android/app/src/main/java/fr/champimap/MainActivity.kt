@@ -27,6 +27,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.webkit.WebViewAssetLoader
+import org.json.JSONArray
 import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
@@ -50,6 +51,11 @@ class MainActivity : ComponentActivity() {
         override fun onFix(fix: Location) = bridge.emit("location", fix.toJson())
         override fun onSatellites(count: Int) = bridge.emit("satellites", JSONObject().put("count", count))
         override fun onRunningChanged(running: Boolean) = emitLocationState()
+    }
+
+    private val downloadListener = object : DownloadHub.Listener {
+        override fun onProgress(progress: DownloadHub.Progress) = bridge.emit("claimProgress", progress.toJson())
+        override fun onClaimsChanged() = bridge.emit("claimsChanged", null)
     }
 
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
@@ -128,10 +134,13 @@ class MainActivity : ComponentActivity() {
         }
         bridge.handle("getStorageStats") {
             val store = ChunkStore.get(this)
+            // Un seul calcul de claimBytes() (jointure contre claims) : cacheBytes()/cacheTargetBytes() en
+            // dérivent chacun un, l'appeler trois fois répéterait la même requête coûteuse.
+            val claimBytes = store.claimBytes()
             JSONObject()
-                .put("cacheBytes", store.totalBytes())
-                .put("cacheTargetBytes", store.cacheTargetBytes())
-                .put("claimBytes", 0)
+                .put("cacheBytes", store.totalBytes() - claimBytes)
+                .put("cacheTargetBytes", store.cacheTargetBytes(claimBytes))
+                .put("claimBytes", claimBytes)
         }
         bridge.handle("getSettings") {
             JSONObject().put("prefetchOnMobileData", AppSettings.prefetchOnMobileData(this))
@@ -139,6 +148,60 @@ class MainActivity : ComponentActivity() {
         bridge.handle("setPrefetchOnMobileData") { params ->
             AppSettings.setPrefetchOnMobileData(this, params.getBoolean("on"))
             null
+        }
+        bridge.handle("listClaims") {
+            val store = ChunkStore.get(this)
+            JSONArray(store.listClaims().map { claim ->
+                JSONObject()
+                    .put("id", claim.id)
+                    .put("name", claim.name)
+                    .put("xMin", claim.xMin)
+                    .put("yMin", claim.yMin)
+                    .put("xMax", claim.xMax)
+                    .put("yMax", claim.yMax)
+                    .put("createdAt", claim.createdAt)
+                    .put("status", claim.status)
+                    .put("bytes", store.claimBytes(claim.id))
+            })
+        }
+        bridge.handle("createClaim") { params ->
+            val claim = Claim(
+                id = params.getString("id"),
+                name = params.getString("name"),
+                xMin = params.getInt("xMin"),
+                yMin = params.getInt("yMin"),
+                xMax = params.getInt("xMax"),
+                yMax = params.getInt("yMax"),
+                createdAt = System.currentTimeMillis(),
+                status = Claim.DOWNLOADING,
+            )
+            require(claim.xMax >= claim.xMin && claim.yMax >= claim.yMin) { "Rectangle de zone invalide" }
+            ChunkStore.get(this).insertClaim(claim)
+            runOnUiThread { DownloadService.start(this) }
+            DownloadHub.publishClaimsChanged()
+            null
+        }
+        bridge.handle("renameClaim") { params ->
+            ChunkStore.get(this).renameClaim(params.getString("id"), params.getString("name"))
+            DownloadHub.publishClaimsChanged()
+            null
+        }
+        bridge.handle("deleteClaim") { params ->
+            ChunkStore.get(this).deleteClaim(params.getString("id"))
+            DownloadHub.publishClaimsChanged()
+            null
+        }
+        bridge.handle("getChunkSizeAverages") {
+            JSONObject().apply {
+                ChunkStore.get(this@MainActivity).averageChunkBytesByZoom().forEach { (z, bytes) -> put(z.toString(), bytes) }
+            }
+        }
+        bridge.handle("getAvailableRegions") { params ->
+            JSONArray(
+                ChunkStore.get(this)
+                    .availableRegions(params.getInt("xMin"), params.getInt("yMin"), params.getInt("xMax"), params.getInt("yMax"))
+                    .map { (x, y) -> JSONArray().put(x).put(y) },
+            )
         }
         bridge.install()
         onBackPressedDispatcher.addCallback(this, backCallback)
@@ -149,6 +212,11 @@ class MainActivity : ComponentActivity() {
         // appel explicite en complément, après setContentView, tant que ce n'est pas revérifié sur l'appareil.
         setLightSystemBarIcons()
         webView.loadUrl(BuildConfig.WEB_URL)
+
+        // Reprise après arrêt ou crash : un claim encore « downloading » relance le service.
+        Thread {
+            if (ChunkStore.get(this).firstClaimWithStatus(Claim.DOWNLOADING) != null) runOnUiThread { DownloadService.start(this) }
+        }.start()
     }
 
     override fun onStart() {
@@ -158,6 +226,8 @@ class MainActivity : ComponentActivity() {
         // Le listener vient d'être (ré)attaché : la page a pu rater un changement pendant qu'on était
         // en arrière-plan (ex. arrêt depuis la notification), on lui renvoie l'état courant.
         resyncLocationState()
+        DownloadHub.addListener(downloadListener)
+        DownloadHub.latest().forEach { downloadListener.onProgress(it) }
     }
 
     override fun onResume() {
@@ -173,6 +243,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         LocationHub.setAppVisible(false)
         LocationHub.removeListener(locationListener)
+        DownloadHub.removeListener(downloadListener)
         super.onStop()
     }
 
@@ -241,6 +312,12 @@ class MainActivity : ComponentActivity() {
         .put("longitude", longitude)
         .put("accuracy", if (hasAccuracy()) accuracy.toDouble() else JSONObject.NULL)
         .put("time", time)
+
+    private fun DownloadHub.Progress.toJson(): JSONObject = JSONObject()
+        .put("claimId", claimId)
+        .put("done", done)
+        .put("total", total)
+        .put("waitingForNetwork", waitingForNetwork)
 
     private fun setLightSystemBarIcons() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

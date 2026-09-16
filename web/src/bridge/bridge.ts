@@ -3,6 +3,19 @@ import { createFakeNative } from './fakeNative';
 export type LocationFix = { latitude: number; longitude: number; accuracy: number | null; time: number };
 export type StorageStats = { cacheBytes: number; cacheTargetBytes: number; claimBytes: number };
 export type AppSettings = { prefetchOnMobileData: boolean };
+export type Claim = {
+  id: string;
+  name: string;
+  xMin: number;
+  yMin: number;
+  xMax: number;
+  yMax: number;
+  createdAt: number;
+  status: 'downloading' | 'complete';
+  bytes: number;
+};
+export type ClaimProgress = { claimId: string; done: number; total: number; waitingForNetwork: boolean };
+type RegionRectParams = { xMin: number; yMin: number; xMax: number; yMax: number };
 
 /** Méthodes exposées par Kotlin : paramètres et résultat. */
 export type BridgeMethods = {
@@ -12,6 +25,12 @@ export type BridgeMethods = {
   getStorageStats: { params: Record<string, never>; result: StorageStats };
   getSettings: { params: Record<string, never>; result: AppSettings };
   setPrefetchOnMobileData: { params: { on: boolean }; result: null };
+  listClaims: { params: Record<string, never>; result: Claim[] };
+  createClaim: { params: RegionRectParams & { id: string; name: string }; result: null };
+  renameClaim: { params: { id: string; name: string }; result: null };
+  deleteClaim: { params: { id: string }; result: null };
+  getChunkSizeAverages: { params: Record<string, never>; result: Record<string, number> };
+  getAvailableRegions: { params: RegionRectParams; result: [number, number][] };
 };
 
 /** Événements poussés par Kotlin. */
@@ -21,6 +40,8 @@ export type BridgeEvents = {
   // null en mode approximatif (permission FINE non accordée) : pas de statut GNSS disponible.
   satellites: { count: number | null };
   locationState: { running: boolean; permissionDenied: boolean };
+  claimProgress: ClaimProgress;
+  claimsChanged: null;
 };
 
 type NativePort = {

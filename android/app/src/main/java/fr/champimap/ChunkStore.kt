@@ -9,7 +9,23 @@ import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
 import java.util.concurrent.atomic.AtomicInteger
 
-/** Base SQLite unique des chunks (ADR 0001). */
+data class Claim(
+    val id: String,
+    val name: String,
+    val xMin: Int,
+    val yMin: Int,
+    val xMax: Int,
+    val yMax: Int,
+    val createdAt: Long,
+    val status: String,
+) {
+    companion object {
+        const val DOWNLOADING = "downloading"
+        const val COMPLETE = "complete"
+    }
+}
+
+/** Base SQLite unique : chunks + claims (ADR 0001). « Claimé » est calculé, jamais stocké par chunk. */
 class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
 
     private val writesSinceTrimCheck = AtomicInteger()
@@ -20,7 +36,9 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
-        // Doit précéder la création des tables (base en version 1, jamais publiée : pas de migration à écrire).
+        // Doit précéder la création des tables ; sans effet sur une base déjà en version 1 (auto_vacuum ne se
+        // change qu'à la création, une base existante resterait en NONE — sans incidence ici, la phase 4 n'a
+        // jamais publié de version sans auto_vacuum).
         db.execSQL("PRAGMA auto_vacuum = INCREMENTAL")
         // Un peu moins durable que FULL en cas de coupure brutale, contre moins d'E/S à chaque écriture ; le WAL
         // (activé ci-dessus) protège déjà des corruptions liées à un crash pendant une transaction.
@@ -37,9 +55,28 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
                 "PRIMARY KEY (z, x, y))",
         )
         db.execSQL("CREATE INDEX chunks_last_access ON chunks (last_access)")
+        // Couvre availableRegions()/covers() (z, x, y) et permet de lire size sans revenir aux pages de données.
+        db.execSQL("CREATE INDEX chunks_zxy_size ON chunks (z, x, y, size)")
+        createClaimsTable(db)
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            db.execSQL("CREATE INDEX chunks_zxy_size ON chunks (z, x, y, size)")
+            createClaimsTable(db)
+        }
+    }
+
+    private fun createClaimsTable(db: SQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE claims (" +
+                "id TEXT PRIMARY KEY, name TEXT NOT NULL, " +
+                "x_min INTEGER NOT NULL, y_min INTEGER NOT NULL, x_max INTEGER NOT NULL, y_max INTEGER NOT NULL, " +
+                "created_at INTEGER NOT NULL, status TEXT NOT NULL)",
+        )
+    }
+
+    // ---- Chunks ----
 
     fun read(id: ChunkId): ByteArray? {
         readableDatabase.rawQuery(
@@ -78,23 +115,46 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
             put("last_access", System.currentTimeMillis())
         }
         writableDatabase.insertWithOnConflict("chunks", null, values, SQLiteDatabase.CONFLICT_REPLACE)
-        // SUM(size) parcourt la table : on ne vérifie la taille qu'une écriture sur 50.
+        // Le calcul des tailles parcourt la table : on ne vérifie qu'une écriture sur 50.
         if (writesSinceTrimCheck.incrementAndGet() % TRIM_CHECK_EVERY == 0) trimCache()
     }
 
     fun totalBytes(): Long =
         DatabaseUtils.longForQuery(readableDatabase, "SELECT COALESCE(SUM(size), 0) FROM chunks", null)
 
-    /** Taille visée pour le cache. Phase 5 : dépendra des claims. */
-    fun cacheTargetBytes(): Long = CACHE_TARGET_BYTES
+    fun claimBytes(): Long =
+        DatabaseUtils.longForQuery(
+            readableDatabase,
+            "SELECT COALESCE(SUM(size), 0) FROM chunks WHERE EXISTS (SELECT 1 FROM claims c WHERE ${covers("c")})",
+            null,
+        )
 
-    /** Supprime les chunks les plus anciennement vus jusqu'à repasser sous 95 % de la cible. */
+    fun claimBytes(claimId: String): Long =
+        DatabaseUtils.longForQuery(
+            readableDatabase,
+            "SELECT COALESCE(SUM(chunks.size), 0) FROM chunks, claims c WHERE c.id = ? AND ${covers("c")}",
+            arrayOf(claimId),
+        )
+
+    fun cacheBytes(): Long = totalBytes() - claimBytes()
+
+    /** Le cache vise 500 MB, et moins si les claims poussent le total au-delà de 1 GB. */
+    fun cacheTargetBytes(): Long = cacheTargetBytes(claimBytes())
+
+    /** Même formule que ci-dessus mais à partir d'un claimBytes() déjà calculé (évite de refaire la jointure). */
+    fun cacheTargetBytes(claimBytes: Long): Long = minOf(CACHE_TARGET_BYTES, maxOf(0L, GLOBAL_LIMIT_BYTES - claimBytes))
+
+    /** Supprime les chunks non claimés les plus anciennement vus jusqu'à repasser sous 95 % de la cible. */
     @Synchronized
     fun trimCache() {
-        val target = cacheTargetBytes()
-        var total = totalBytes()
-        // Rien à faire tant qu'on n'a pas dépassé la cible elle-même : on ne vise la marge de 95 % que
-        // lorsqu'il faut réellement nettoyer, pour ne pas frotter contre le seuil à chaque écriture.
+        // Un seul calcul de claimBytes() (jointure contre claims) : la cible et la taille du cache en dérivent
+        // chacun, l'appeler deux fois répéterait la même requête coûteuse.
+        val claimBytes = claimBytes()
+        val target = cacheTargetBytes(claimBytes)
+        var total = totalBytes() - claimBytes
+        // Rien à faire tant qu'on n'a pas dépassé la cible elle-même : on évite ainsi le scan NOT EXISTS
+        // (jointure contre claims) à chaque écriture, et on ne vise la marge de 95 % que lorsqu'il faut
+        // réellement nettoyer.
         if (total <= target) return
         val floor = target * 95 / 100
         var deletedAny = false
@@ -102,7 +162,9 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
             var batchBytes = 0L
             val rowids = ArrayList<Long>(TRIM_BATCH)
             writableDatabase.rawQuery(
-                "SELECT rowid, size FROM chunks ORDER BY last_access LIMIT $TRIM_BATCH",
+                "SELECT rowid, size FROM chunks " +
+                    "WHERE NOT EXISTS (SELECT 1 FROM claims c WHERE ${covers("c")}) " +
+                    "ORDER BY last_access LIMIT $TRIM_BATCH",
                 null,
             ).use { cursor ->
                 while (cursor.moveToNext()) {
@@ -116,22 +178,115 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
             deletedAny = true
         }
         // Rend au système de fichiers l'espace des pages supprimées (auto_vacuum = INCREMENTAL ne le fait pas
-        // seul, il faut l'appeler explicitement), sinon chunks.db ne rétrécit jamais malgré le nettoyage.
+        // seul). Couvre aussi deleteClaim() ci-dessous, qui termine toujours par un appel à trimCache().
         if (deletedAny) {
             writableDatabase.rawQuery("PRAGMA incremental_vacuum", null).use { while (it.moveToNext()) { } }
         }
+    }
+
+    fun averageChunkBytesByZoom(): Map<Int, Long> {
+        val averages = HashMap<Int, Long>()
+        readableDatabase.rawQuery("SELECT z, AVG(size) FROM chunks GROUP BY z", null).use { cursor ->
+            while (cursor.moveToNext()) averages[cursor.getInt(0)] = cursor.getDouble(1).toLong()
+        }
+        return averages
+    }
+
+    /** Régions (z13) du rectangle qui ont au moins un chunk de zoom ≥ 13 dans la base. */
+    fun availableRegions(xMin: Int, yMin: Int, xMax: Int, yMax: Int): List<Pair<Int, Int>> {
+        val shift = "(z - ${ChunkMath.REGION_ZOOM})"
+        val regions = ArrayList<Pair<Int, Int>>()
+        // xMin/yMin/xMax/yMax sont des Int (pas une saisie utilisateur) : inlinés directement, pas d'injection
+        // possible. On ne peut pas les lier avec `?` ici : la comparaison porte sur une expression (x >> shift),
+        // pas sur une colonne nue, donc SQLite n'applique pas l'affinité INTEGER de `x`/`y` au paramètre lié — un
+        // argument lié par rawQuery (toujours TEXT côté Android) ne matcherait alors jamais un entier calculé.
+        readableDatabase.rawQuery(
+            "SELECT DISTINCT x >> $shift, y >> $shift FROM chunks " +
+                "WHERE z >= ${ChunkMath.REGION_ZOOM} AND (x >> $shift) BETWEEN $xMin AND $xMax AND (y >> $shift) BETWEEN $yMin AND $yMax",
+            null,
+        ).use { cursor ->
+            while (cursor.moveToNext()) regions += cursor.getInt(0) to cursor.getInt(1)
+        }
+        return regions
+    }
+
+    // ---- Claims ----
+
+    fun insertClaim(claim: Claim) {
+        writableDatabase.insertOrThrow("claims", null, ContentValues().apply {
+            put("id", claim.id)
+            put("name", claim.name)
+            put("x_min", claim.xMin)
+            put("y_min", claim.yMin)
+            put("x_max", claim.xMax)
+            put("y_max", claim.yMax)
+            put("created_at", claim.createdAt)
+            put("status", claim.status)
+        })
+    }
+
+    fun listClaims(): List<Claim> = queryClaims("SELECT * FROM claims ORDER BY created_at DESC", null)
+
+    fun firstClaimWithStatus(status: String): Claim? =
+        queryClaims("SELECT * FROM claims WHERE status = ? ORDER BY created_at LIMIT 1", arrayOf(status)).firstOrNull()
+
+    fun claimExists(id: String): Boolean =
+        DatabaseUtils.longForQuery(readableDatabase, "SELECT COUNT(*) FROM claims WHERE id = ?", arrayOf(id)) > 0
+
+    fun renameClaim(id: String, name: String) {
+        writableDatabase.execSQL("UPDATE claims SET name = ? WHERE id = ?", arrayOf(name, id))
+    }
+
+    fun setClaimStatus(id: String, status: String) {
+        writableDatabase.execSQL("UPDATE claims SET status = ? WHERE id = ?", arrayOf(status, id))
+    }
+
+    /** Les chunks de la zone redeviennent du cache ordinaire, nettoyé ensuite si besoin. */
+    fun deleteClaim(id: String) {
+        writableDatabase.execSQL("DELETE FROM claims WHERE id = ?", arrayOf(id))
+        trimCache()
+    }
+
+    private fun queryClaims(sql: String, args: Array<String>?): List<Claim> {
+        val claims = ArrayList<Claim>()
+        readableDatabase.rawQuery(sql, args).use { cursor ->
+            while (cursor.moveToNext()) {
+                claims += Claim(
+                    id = cursor.getString(cursor.getColumnIndexOrThrow("id")),
+                    name = cursor.getString(cursor.getColumnIndexOrThrow("name")),
+                    xMin = cursor.getInt(cursor.getColumnIndexOrThrow("x_min")),
+                    yMin = cursor.getInt(cursor.getColumnIndexOrThrow("y_min")),
+                    xMax = cursor.getInt(cursor.getColumnIndexOrThrow("x_max")),
+                    yMax = cursor.getInt(cursor.getColumnIndexOrThrow("y_max")),
+                    createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
+                    status = cursor.getString(cursor.getColumnIndexOrThrow("status")),
+                )
+            }
+        }
+        return claims
     }
 
     private fun ChunkId.args(): Array<String> = arrayOf(z.toString(), x.toString(), y.toString())
 
     companion object {
         const val CACHE_TARGET_BYTES = 500L * 1024 * 1024
+        const val GLOBAL_LIMIT_BYTES = 1024L * 1024 * 1024
         private const val TAG = "ChunkStore"
         private const val DB_NAME = "chunks.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 2
         private const val TOUCH_INTERVAL_MS = 60_000L
         private const val TRIM_BATCH = 200
         private const val TRIM_CHECK_EVERY = 50
+
+        /** SQL : le chunk courant (`chunks.z/x/y`) est dans le rectangle de régions du claim `alias` (même règle que ChunkMath.rangeAtZoom). */
+        private fun covers(alias: String): String {
+            val r = ChunkMath.REGION_ZOOM
+            fun low(column: String) =
+                "(CASE WHEN chunks.z <= $r THEN $alias.$column >> ($r - chunks.z) ELSE $alias.$column << (chunks.z - $r) END)"
+            fun high(column: String) =
+                "(CASE WHEN chunks.z <= $r THEN $alias.$column >> ($r - chunks.z) ELSE (($alias.$column + 1) << (chunks.z - $r)) - 1 END)"
+            return "chunks.x BETWEEN ${low("x_min")} AND ${high("x_max")} AND chunks.y BETWEEN ${low("y_min")} AND ${high("y_max")}"
+        }
 
         @Volatile
         private var instance: ChunkStore? = null

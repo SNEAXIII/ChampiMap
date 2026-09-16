@@ -62,4 +62,41 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 - [ ] D19 Hors ligne au zoom 17 sur une zone où seuls z15-16 ont été vus : tuile floue affichée, jamais beige
 
 ## Phase 5 — zones hors ligne (à vérifier une fois la phase implémentée)
-- [ ] E1 Supprimer une zone hors ligne : la taille de `chunks.db` (`run-as fr.champimap ls -la databases/`) diminue
+- [ ] E1 Supprimer une zone hors ligne : ses chunks redeviennent du cache ordinaire (pas de suppression immédiate, `chunks.db` ne diminue que si le cache dépasse ensuite sa cible) ; la zone disparaît bien de la liste et de la carte
+- [ ] E2 Zoomer sur des cases déjà vues en ligne (jamais téléchargées en zone) : le brouillard hors ligne ne les recouvre pas (régression C1 — `availableRegions`)
+- [ ] E3 Wi-Fi connecté mais sans accès Internet (portail captif) : le brouillard hors ligne apparaît-il à tort ? (limite connue de `navigator.onLine`, à documenter si oui)
+- [ ] E4 Supprimer la zone en cours de téléchargement alors qu'une autre est en attente : cette dernière démarre
+- [ ] E5 Tracer une grande zone (> 1 Go projeté) : l'avertissement « plus de 1 Go » apparaît avant de lancer le téléchargement
+- [ ] E6 Zone couvrant un secteur hors couverture IGN (erreurs persistantes) : elle n'est pas marquée « Complète » dès la première passe en échec, seulement après des passes qui stagnent/empirent d'affilée (I1)
+- [ ] E7 Appuyer sur Accueil juste après le lancement de l'app avec une zone en cours de téléchargement : pas de crash (I2 — `ForegroundServiceStartNotAllowedException`)
+- [ ] E8 Double-tap rapide sur [Télécharger] lors de la création d'une zone : une seule zone créée (I3)
+- [ ] E9 Poser un doigt puis un second avec un léger tremblement du premier avant qu'il ne se pose (pincer/zoomer) : le rectangle déjà tracé reste inchangé (M2)
+- [ ] E10 Sous le niveau de zoom de la grille (9) : glisser un doigt ou la souris ne trace aucun rectangle ; message « Zoome pour afficher la grille des cases. » affiché (M3)
+
+### Task 1 — création et téléchargement
+- [ ] F1 Mise à jour depuis la phase 4 : l'app démarre sans crash (migration `chunks.db` v1 → v2) ; `logcat` (AndroidRuntime, SQLite) propre
+- [ ] F2 Zoom niveau 11 sur une zone jamais vue, tap « Zones hors ligne » : la grille apparaît
+- [ ] F3 Un doigt sur ~2 cases : rectangle vert aligné sur la grille, « 2 cases · ≈ N Mo » ; la carte n'a pas bougé
+- [ ] F3b Après avoir tracé un rectangle, poser un second doigt (pincer ou déplacer à deux doigts) : le rectangle reste inchangé, la carte zoome/bouge normalement
+- [ ] F3c Un tap (sans glisser) sur une case : sélectionne cette case seule (« 1 case · ≈ N Mo »)
+- [ ] F4 [Télécharger] → nom « Zone du JJ/MM » → [Télécharger] : le mode sélection se ferme, la notification « Téléchargement des zones hors ligne » montre un pourcentage qui augmente
+- [ ] F5 App en arrière-plan (Home) pendant 60 s : la notification progresse toujours
+- [ ] F6 Mode avion pendant le téléchargement : la notification passe à « en attente du réseau » ; désactiver le mode avion : la progression reprend
+- [ ] F7 Forcer l'arrêt de l'app pendant le téléchargement puis la relancer : la notification réapparaît, la progression continue sans repartir de zéro
+- [ ] F8 Téléchargement terminé : mode avion, relancer, zoomer au niveau 17 dans la zone → carte nette ; remettre le mode avion à OFF (`airplane_mode_on` = `0`)
+
+### Task 2 — liste des zones
+- [ ] G1 Tap « Zones hors ligne » : la liste montre la zone de la Task 1, avec « Complète », sa taille (Mo) et sa date
+- [ ] G2 [+ Nouvelle zone hors ligne] : le mode sélection s'ouvre ; créer une zone d'une case ; rouvrir la liste : la nouvelle zone affiche un pourcentage qui augmente (rouvrir après 10 s)
+- [ ] G3 [Renommer] → `Forêt` → OK : le nom change
+- [ ] G4 [Voir sur la carte] : la liste se ferme et la carte cadre la zone
+- [ ] G5 [Supprimer] → [Confirmer] sur la zone d'une case : elle disparaît ; si elle était en cours, la notification s'arrête sous ~5 s
+- [ ] G6 Paramètres : « Zones hors ligne : N Mo » correspond à peu près à la somme des tailles affichées
+- [ ] G7 Retour Android depuis la liste : la liste se ferme
+
+### Task 3 — brouillard et contours
+- [ ] H1 Créer une zone d'une case ; pendant son téléchargement : la case est voilée de gris
+- [ ] H2 Téléchargement terminé : voile retiré, contour vert pointillé autour de la zone (la zone de la Task 1 aussi)
+- [ ] H3 Mode avion, attendre 3 s, zoomer au niveau 11 autour d'une zone complète : les cases ni en zone ni déjà vues sont voilées, la zone complète et les secteurs parcourus ne le sont pas
+- [ ] H4 Dézoomer sous le niveau 10 : pas de voile hors ligne
+- [ ] H5 Désactiver le mode avion : le voile hors ligne disparaît sous ~3 s ; vérifier `airplane_mode_on` = `0`
