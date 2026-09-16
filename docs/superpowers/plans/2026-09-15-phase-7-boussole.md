@@ -81,7 +81,7 @@ web/src/
   - Kotlin `class HeadingSensor(context: Context, onChange: (heading: Double, tilted: Boolean, needsCalibration: Boolean) -> Unit)` avec `start()` et `stop()`.
   - TS `type Heading = { heading: number; tilted: boolean; needsCalibration: boolean }` exporté par `bridge.ts`, et `BridgeEvents.heading: Heading`.
   - `useHeading(): Heading | null`.
-  - `PositionLayer` props `{ map: MapLibreMap; fix: LocationFix | null; heading: number | null; onSelect: () => void }`.
+  - `PositionLayer` props `{ map: MapLibreMap; fix: LocationFix | null; heading: number | null; stale: boolean; onSelect: () => void }` (le `stale` vient de la phase 3, voir Step 6).
   - `NorthButton` props `{ map: MapLibreMap; hidden: boolean }`. `CompassWarnings` props `{ heading: Heading | null; active: boolean }`.
 
 - [ ] **Step 1: Créer `android/app/src/main/java/fr/champimap/HeadingSensor.kt`**
@@ -255,6 +255,11 @@ export function useHeading(): Heading | null {
 
 - [ ] **Step 6: Remplacer `web/src/components/PositionLayer.tsx`**
 
+Absorbe les correctifs de la revue finale de la phase 3 (déjà en place dans le fichier actuel) : plus de
+`stopPropagation` sur le marqueur (le filtre est dans `useLongPressViseur`), `addTo(map)` une seule fois,
+ajout de couche robuste (retenté à chaque fix tant que la source manque), et un prop `stale` qui atténue le
+marqueur et le cercle. `onMarker` disparaît : la rotation se fait directement sur `markerRef` via `heading`.
+
 ```tsx
 import { useEffect, useRef } from 'react';
 import { Marker, type GeoJSONSource, type Map as MapLibreMap } from 'maplibre-gl';
@@ -265,16 +270,26 @@ type Props = {
   map: MapLibreMap;
   fix: LocationFix | null;
   heading: number | null;
+  stale: boolean;
   onSelect: () => void;
 };
 
 const SOURCE_ID = 'position-accuracy';
 const EMPTY = { type: 'FeatureCollection', features: [] } as const;
 
-/** Point bleu cliquable, orienté selon le cap, + cercle de précision (en mètres). */
-export function PositionLayer({ map, fix, heading, onSelect }: Props) {
+/** Ajoute la source et les couches du cercle de précision si elles manquent encore. Sûr à rappeler. */
+function ensureLayers(map: MapLibreMap): void {
+  if (map.getSource(SOURCE_ID)) return;
+  map.addSource(SOURCE_ID, { type: 'geojson', data: EMPTY });
+  map.addLayer({ id: 'position-accuracy-fill', type: 'fill', source: SOURCE_ID, paint: { 'fill-color': '#2563eb', 'fill-opacity': 0.12 } });
+  map.addLayer({ id: 'position-accuracy-line', type: 'line', source: SOURCE_ID, paint: { 'line-color': '#2563eb', 'line-width': 1, 'line-opacity': 0.5 } });
+}
+
+/** Point bleu cliquable, orienté selon le cap, + cercle de précision (en mètres, suit le zoom). */
+export function PositionLayer({ map, fix, heading, stale, onSelect }: Props) {
   const markerRef = useRef<Marker | null>(null);
   const coneRef = useRef<HTMLElement | null>(null);
+  const addedRef = useRef(false);
   const onSelectRef = useRef(onSelect);
 
   useEffect(() => {
@@ -282,15 +297,11 @@ export function PositionLayer({ map, fix, heading, onSelect }: Props) {
   });
 
   useEffect(() => {
-    const addLayers = () => {
-      if (map.getSource(SOURCE_ID)) return;
-      map.addSource(SOURCE_ID, { type: 'geojson', data: EMPTY });
-      map.addLayer({ id: 'position-accuracy-fill', type: 'fill', source: SOURCE_ID, paint: { 'fill-color': '#2563eb', 'fill-opacity': 0.12 } });
-      map.addLayer({ id: 'position-accuracy-line', type: 'line', source: SOURCE_ID, paint: { 'line-color': '#2563eb', 'line-width': 1, 'line-opacity': 0.5 } });
-    };
-    if (map.isStyleLoaded()) addLayers();
-    else map.once('load', addLayers);
+    const onLoad = () => ensureLayers(map);
+    if (map.isStyleLoaded()) ensureLayers(map);
+    else map.once('load', onLoad);
 
+    // Zone de touche 48 px (accessibilité) même si le point visible reste petit.
     const element = document.createElement('button');
     element.type = 'button';
     element.setAttribute('aria-label', 'Ma position');
@@ -305,27 +316,44 @@ export function PositionLayer({ map, fix, heading, onSelect }: Props) {
     });
     coneRef.current = element.querySelector<HTMLElement>('[data-cone]');
     // rotationAlignment 'map' : la rotation est relative au nord de la carte, même quand la carte tourne.
-    markerRef.current = new Marker({ element, rotationAlignment: 'map' });
+    const marker = new Marker({ element, rotationAlignment: 'map' });
+    markerRef.current = marker;
+    addedRef.current = false;
 
     return () => {
-      markerRef.current?.remove();
+      marker.remove();
       markerRef.current = null;
       coneRef.current = null;
-      map.off('load', addLayers);
+      addedRef.current = false;
+      map.off('load', onLoad);
     };
   }, [map]);
 
   useEffect(() => {
     const marker = markerRef.current;
     if (!marker || !fix) return;
-    marker.setLngLat([fix.longitude, fix.latitude]).addTo(map);
-    const source = map.getSource(SOURCE_ID) as GeoJSONSource | undefined;
-    source?.setData(
+    marker.setLngLat([fix.longitude, fix.latitude]);
+    // N'attache le marqueur à la carte qu'une fois : addTo() répété est inutile.
+    if (!addedRef.current) {
+      marker.addTo(map);
+      addedRef.current = true;
+    }
+    marker.getElement().style.opacity = stale ? '0.4' : '1';
+    // La couche a pu ne pas être prête au montage (style pas encore chargé, 'load' raté) : on retente
+    // ici, à chaque fix, tant que la source manque, pour ne jamais rester bloqué silencieusement.
+    if (!map.getSource(SOURCE_ID) && map.isStyleLoaded()) ensureLayers(map);
+    const source = map.getSource<GeoJSONSource>(SOURCE_ID);
+    if (!source) return;
+    source.setData(
       fix.accuracy === null
         ? EMPTY
         : { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: circlePolygon(fix, fix.accuracy) } },
     );
-  }, [map, fix]);
+    if (map.getLayer('position-accuracy-fill')) {
+      map.setPaintProperty('position-accuracy-fill', 'fill-opacity', stale ? 0.06 : 0.12);
+      map.setPaintProperty('position-accuracy-line', 'line-opacity', stale ? 0.25 : 0.5);
+    }
+  }, [map, fix, stale]);
 
   useEffect(() => {
     coneRef.current?.classList.toggle('hidden', heading === null);
@@ -399,7 +427,9 @@ export function CompassWarnings({ heading, active }: Props) {
 - [ ] **Step 9: Modifier `web/src/App.tsx`**
 
 - Imports : `import { useHeading } from './location/useHeading';`, `import { NorthButton } from './components/NorthButton';`, `import { CompassWarnings } from './components/CompassWarnings';`
-- Après `const fix = location.fix;`, ajouter : `const heading = useHeading();`
+- Après `const stale = isStale(fix, location.running);` (correctif I1 de la revue finale phase 3, juste après `const fix = location.fix;`), ajouter : `const heading = useHeading();`
+- Le handler `onDragStart` (effet « Déplacer la carte au doigt quitte Centré/Suivi ») annule déjà `centerOnNextFix`
+  depuis le correctif M4 de la revue finale phase 3 ; la phase 7 n'y touche pas, rien à faire.
 - Remplacer le bloc de suivi et de maintien de l'écran de la phase 3 :
 ```tsx
   // Suivi : la carte suit chaque nouvelle position. Premier tap sans position : centrer dès qu'elle arrive.
@@ -449,9 +479,10 @@ par :
       map.easeTo({ center, bearing: 0 });
     }
 ```
-- Remplacer `{map && <PositionLayer map={map} fix={fix} onSelect={() => setSheet({ kind: 'position' })} />}` par :
+- Remplacer `{map && <PositionLayer map={map} fix={fix} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}`
+  (le prop `stale` vient du correctif I1 de la revue finale phase 3) par :
 ```tsx
-        {map && <PositionLayer map={map} fix={fix} heading={headingDegrees} onSelect={() => setSheet({ kind: 'position' })} />}
+        {map && <PositionLayer map={map} fix={fix} heading={headingDegrees} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
 ```
 - Juste avant `<LocateButton mode={followMode} onPress={pressLocate} />`, ajouter :
 ```tsx
@@ -741,11 +772,12 @@ export function WaypointSheet({ waypoint, distance, isTarget, onToggleTarget, on
     if (targetId !== null && waypoints.length > 0 && target === null) setTargetId(null);
   }, [targetId, target, waypoints.length, setTargetId]);
 ```
-- Remplacer l'effet de maintien de l'écran :
+- Remplacer l'effet de maintien de l'écran (anchor telle qu'elle existe réellement dans `App.tsx`, avec
+  `.catch(console.warn)` et non `void` — voir les correctifs de la revue finale phase 3) :
 ```tsx
   // Écran allumé uniquement en Suivi.
   useEffect(() => {
-    void callNative('setKeepScreenOn', { on: followMode === 'follow' });
+    callNative('setKeepScreenOn', { on: followMode === 'follow' }).catch(console.warn);
   }, [followMode]);
 ```
 par :
@@ -753,7 +785,7 @@ par :
   // Écran allumé uniquement en Suivi ou avec une Cible active.
   const keepScreenOn = followMode === 'follow' || target !== null;
   useEffect(() => {
-    void callNative('setKeepScreenOn', { on: keepScreenOn });
+    callNative('setKeepScreenOn', { on: keepScreenOn }).catch(console.warn);
   }, [keepScreenOn]);
 ```
 - Remplacer `<CompassWarnings heading={heading} active={followMode === 'follow'} />` par :

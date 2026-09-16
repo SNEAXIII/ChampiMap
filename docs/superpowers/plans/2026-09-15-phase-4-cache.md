@@ -15,6 +15,12 @@
 
 **Prérequis:** phase 3 terminée (`LocationService.kt`, `LocationHub.kt`, `NativeBridge.kt`, `MainActivity.kt` avec handlers `setBackEnabled`/`startLocation`/`setKeepScreenOn`, `web/src/bridge/*`, `App.tsx` avec `Panel = 'waypoints' | null`).
 
+> Anchors vérifiées après la revue finale de la phase 3 (2026-09-16) : `Panel`/`BottomBar` (App.tsx), `fakeNative.ts`
+> `setKeepScreenOn: () => null,`, `LocationService.onLocationResult`, et la déclaration `LocationFix` de `bridge.ts` sont
+> inchangés, ces anchors restent valables telles quelles. Seul `Prefetcher.allowed()` (Task 2 Step 3) a été ajusté
+> pour dépendre de `LocationHub.running` (voir M5 de la revue finale) : le pré-téléchargement s'arrête avec le
+> service de localisation.
+
 ## Global Constraints
 
 - `fr.champimap`, `minSdk 26`, `compileSdk 36`, `targetSdk 36`. Pas de Leaflet/Compose/AppCompat. AGP 9 sans plugin kotlin-android.
@@ -505,7 +511,7 @@ git commit -m "feat: cache SQLite des chunks servi à la carte"
 - Modify: `android/app/src/main/java/fr/champimap/LocationService.kt`, `android/app/src/main/java/fr/champimap/MainActivity.kt`, `web/src/bridge/bridge.ts`, `web/src/bridge/fakeNative.ts`, `web/src/components/BottomBar.tsx`, `web/src/App.tsx`
 
 **Interfaces:**
-- Consumes: `ChunkStore.get/contains/write/totalBytes`, `ChunkSource.download`, `ChunkMath`, `Network` (Task 1), `LocationHub.publishFix` et le callback de `LocationService` (phase 3), `NativeBridge.handle` (phase 2), `callNative`, `emitFake`, `Panel`.
+- Consumes: `ChunkStore.get/contains/write/totalBytes`, `ChunkSource.download`, `ChunkMath`, `Network` (Task 1), `LocationHub.publishFix`/`LocationHub.running` et le callback de `LocationService` (phase 3), `NativeBridge.handle` (phase 2), `callNative`, `emitFake`, `Panel`.
 - Produces:
   - `object ChunkDownloader { const val PARALLEL = 4; fun downloadMissing(context: Context, chunks: Sequence<ChunkId>, shouldContinue: () -> Boolean, onChunk: (ok: Boolean) -> Unit): Int }` : renvoie le nombre d'échecs. La phase 5 l'utilise pour les claims.
   - `object AppSettings { fun prefetchOnMobileData(context): Boolean; fun setPrefetchOnMobileData(context, on: Boolean) }`.
@@ -619,7 +625,10 @@ class Prefetcher(context: Context) {
     }
 
     private fun allowed(): Boolean =
-        Network.isOnline(appContext) &&
+        // S'arrête avec le service de localisation (ex. « Stop » depuis la notification, phase 3) :
+        // pas de sens à continuer de télécharger des chunks autour d'une position qu'on ne suit plus.
+        LocationHub.running &&
+            Network.isOnline(appContext) &&
             (Network.isUnmetered(appContext) || AppSettings.prefetchOnMobileData(appContext))
 }
 ```
@@ -703,6 +712,10 @@ export function formatBytes(bytes: number): string {
 ```
 
 - [ ] **Step 9: Créer `web/src/components/SettingsPanel.tsx`**
+
+> TODO (reporté, M11 de la revue finale phase 3) : ce panneau serait un emplacement naturel pour un bouton
+> « Arrêter le GPS » in-app (arrêter `LocationService` sans passer par la notification). Pas fait ici, à
+> reprendre dans une phase ultérieure si le besoin se confirme.
 
 ```tsx
 import { useEffect, useState } from 'react';
