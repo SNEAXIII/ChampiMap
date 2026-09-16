@@ -1480,7 +1480,8 @@ export function ClaimOverlays({ map, claims }: Props) {
 - [ ] **Step 2: Modifier `web/src/App.tsx`**
 
 - Import : `import { ClaimOverlays } from './components/ClaimOverlays';`
-- Dans le JSX, juste après `<GpsBadge location={location} />`, ajouter :
+- Dans le JSX, juste après `<GpsBadge location={location} stale={stale} />` (le prop `stale` vient du
+  reliquat de la revue finale phase 3), ajouter :
 ```tsx
         {map && <ClaimOverlays map={map} claims={claims} />}
 ```

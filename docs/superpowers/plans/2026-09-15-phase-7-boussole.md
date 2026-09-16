@@ -427,7 +427,7 @@ export function CompassWarnings({ heading, active }: Props) {
 - [ ] **Step 9: Modifier `web/src/App.tsx`**
 
 - Imports : `import { useHeading } from './location/useHeading';`, `import { NorthButton } from './components/NorthButton';`, `import { CompassWarnings } from './components/CompassWarnings';`
-- Après `const stale = isStale(fix, location.running);` (correctif I1 de la revue finale phase 3, juste après `const fix = location.fix;`), ajouter : `const heading = useHeading();`
+- Après `const stale = useStale(fix, location.running);` (correctif I1/reliquat de la revue finale phase 3, juste après `const fix = location.fix;`), ajouter : `const heading = useHeading();`
 - Le handler `onDragStart` (effet « Déplacer la carte au doigt quitte Centré/Suivi ») annule déjà `centerOnNextFix`
   depuis le correctif M4 de la revue finale phase 3 ; la phase 7 n'y touche pas, rien à faire.
 - Remplacer le bloc de suivi et de maintien de l'écran de la phase 3 :
@@ -480,7 +480,7 @@ par :
     }
 ```
 - Remplacer `{map && <PositionLayer map={map} fix={fix} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}`
-  (le prop `stale` vient du correctif I1 de la revue finale phase 3) par :
+  (le prop `stale` vient du correctif I1 de la revue finale phase 3, calculé via `useStale` depuis le reliquat) par :
 ```tsx
         {map && <PositionLayer map={map} fix={fix} heading={headingDegrees} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
 ```

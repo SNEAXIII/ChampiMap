@@ -16,14 +16,14 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 - [ ] B5 Tap point bleu → « Ma position » → Créer un waypoint ici → 📍 au point bleu
 - [ ] B6 Tap 📍 → « À N m »
 - [x] B7 Mode avion : fix < 60 s (± 3 m, 34 sat)
-- [ ] B8 Appui long sur point bleu / 📍 : pas de viseur
+- [ ] B8 Appui long sur point bleu / 📍 : pas de viseur ; appui long sur un marqueur n'ouvre pas non plus la feuille de création
 - [ ] B9 Retour ferme la feuille « Ma position »
 - [ ] Icônes barre système sombres sur Android 10 (enableEdgeToEdge)
 - [ ] Release APK : smoke test (bridge, retour, IndexedDB, origine appassets)
 
 ### Phase 3 — revue finale (2026-09-16)
 - [ ] C1 A1 en premier : « Approximative » → pas de crash (`logcat -b crash`), badge « ± N m » sans « 0 sat. »
-- [ ] C2 Stop depuis la notif app en arrière-plan puis réouverture : badge « GPS arrêté » ; point bleu grisé (périmé)
+- [ ] C2 Stop depuis la notif app en arrière-plan puis réouverture : badge « GPS arrêté · touche ◎ » ; point bleu atténué (périmé)
 - [ ] C3 Écran éteint 10+ min en poche (Doze, optimisation batterie Samsung) : fixes toutes les ~30 s
 - [ ] C4 Android 14+ : balayer la notification du service — Stop encore accessible ? GPS continue ?
 - [ ] C5 Notifications refusées (13+) : service sans notif visible, Stop trouvable (gestionnaire d'apps actives) ?
@@ -37,5 +37,5 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 - [ ] C13 KEEP_SCREEN_ON : actif en Suivi, retiré après glissé, retiré après arrière-plan/retour
 - [ ] C14 Batterie : 1 h en arrière-plan GPS actif (batterystats / écran batterie Samsung)
 - [ ] C15 Crash du renderer (chrome://inspect ou mémoire basse) : l'activité se recrée et la position se resynchronise
-- [ ] C16 Position périmée : couper le GPS (Stop) → badge « Position d'il y a N min » après 60 s, marqueur atténué
+- [ ] C16 GPS actif sans nouveau fix pendant > 60 s : badge « Position d'il y a N min » et point bleu atténué ; simulable en intérieur loin des fenêtres
 - [ ] C17 Ménage : mode avion laissé activé à la fin de la séance du 2026-09-16
