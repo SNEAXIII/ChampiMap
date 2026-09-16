@@ -21,23 +21,42 @@ function ClaimRow({ claim, progress, onShow }: { claim: Claim; progress: ClaimPr
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(claim.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
 
   return (
     <li className="border-b border-gray-100 px-4 py-3">
       {renaming ? (
         <form
-          className="flex gap-2"
+          className="flex flex-col gap-2"
           onSubmit={async (event) => {
             event.preventDefault();
             const trimmed = name.trim();
-            if (trimmed) await callNative('renameClaim', { id: claim.id, name: trimmed });
-            setRenaming(false);
+            if (!trimmed) return;
+            setBusy(true);
+            setError(false);
+            try {
+              await callNative('renameClaim', { id: claim.id, name: trimmed });
+              setRenaming(false);
+              setBusy(false);
+            } catch (err) {
+              console.error('Renommage de la zone impossible', err);
+              setError(true);
+              setBusy(false);
+            }
           }}
         >
-          <input aria-label="Nouveau nom" value={name} onChange={(event) => setName(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-base" />
-          <button type="submit" className="rounded-lg bg-emerald-700 px-4 font-medium text-white">
-            OK
-          </button>
+          <div className="flex gap-2">
+            <input aria-label="Nouveau nom" value={name} onChange={(event) => setName(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-base" />
+            <button type="submit" disabled={busy} className="rounded-lg bg-emerald-700 px-4 font-medium text-white disabled:opacity-60">
+              OK
+            </button>
+          </div>
+          {error && (
+            <p role="alert" className="text-sm text-red-600">
+              Action impossible sur l'appareil.
+            </p>
+          )}
         </form>
       ) : (
         <>
@@ -57,18 +76,32 @@ function ClaimRow({ claim, progress, onShow }: { claim: Claim; progress: ClaimPr
             </button>
             <button
               type="button"
+              disabled={busy}
               onClick={async () => {
                 if (!confirmDelete) {
                   setConfirmDelete(true);
                   return;
                 }
-                await callNative('deleteClaim', { id: claim.id });
+                setBusy(true);
+                setError(false);
+                try {
+                  await callNative('deleteClaim', { id: claim.id });
+                } catch (err) {
+                  console.error('Suppression de la zone impossible', err);
+                  setError(true);
+                  setBusy(false);
+                }
               }}
-              className={`rounded-lg px-3 py-2 font-medium ${confirmDelete ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700'}`}
+              className={`rounded-lg px-3 py-2 font-medium disabled:opacity-60 ${confirmDelete ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700'}`}
             >
               {confirmDelete ? 'Confirmer' : 'Supprimer'}
             </button>
           </div>
+          {error && (
+            <p role="alert" className="text-sm text-red-600">
+              Action impossible sur l'appareil.
+            </p>
+          )}
         </>
       )}
     </li>
