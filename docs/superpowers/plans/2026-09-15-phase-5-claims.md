@@ -27,7 +27,7 @@
   - au-delà, le cache se vide pour se rapprocher de 1 GB ;
   - **les claims ne sont jamais supprimés automatiquement.**
 - Estimation : moyenne réelle des chunks stockés pour chaque zoom, **70 KB** par défaut.
-- Téléchargement en Kotlin, 4 requêtes en parallèle, continue en arrière-plan (progression dans la notification), reprise automatique après arrêt ou crash en recalculant les chunks manquants. Pas de pause manuelle : « en pause » = attente du réseau.
+- Téléchargement en Kotlin via `ChunkDownloader` (2 requêtes en parallèle, `ChunkSource.download(interactive = false)` — moitié du plafond IGN de 4, l'autre moitié restant réservée à la navigation), continue en arrière-plan (progression dans la notification), reprise automatique après arrêt ou crash en recalculant les chunks manquants. Pas de pause manuelle : « en pause » = attente du réseau.
 - Création : menu → « Nouvelle zone hors ligne » → grille ; un doigt trace un rectangle aligné sur les cases, deux doigts déplacent/zooment ; en direct « N cases · ≈ X Mo » + avertissement 1 GB ; [Télécharger] → nom prérempli « Zone du JJ/MM ». Pas de viseur ni de création de waypoint dans ce mode.
 - Liste : nom, taille, date, état (complète / X % / en pause). Actions : renommer, supprimer, voir sur la carte.
 - Brouillard :

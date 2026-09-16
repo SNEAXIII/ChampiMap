@@ -62,7 +62,7 @@ android/app/src/main/
     ├── ChunkSource.kt                         téléchargement d'un chunk chez l'IGN
     ├── Network.kt                             en ligne ? réseau non facturé ?
     ├── ChunkPathHandler.kt                    /chunks/{z}/{x}/{y} → cache ou IGN, avec CORS
-    ├── ChunkDownloader.kt                     télécharge une suite de chunks manquants, 4 en parallèle
+    ├── ChunkDownloader.kt                     télécharge une suite de chunks manquants, 2 en parallèle
     ├── AppSettings.kt                         préférences (pré-téléchargement en données mobiles)
     ├── Prefetcher.kt                          pré-téléchargement 3×3 régions autour de la position
     ├── LocationService.kt                     + appelle Prefetcher à chaque position
@@ -513,7 +513,7 @@ git commit -m "feat: cache SQLite des chunks servi à la carte"
 **Interfaces:**
 - Consumes: `ChunkStore.get/contains/write/totalBytes`, `ChunkSource.download`, `ChunkMath`, `Network` (Task 1), `LocationHub.publishFix`/`LocationHub.running` et le callback de `LocationService` (phase 3), `NativeBridge.handle` (phase 2), `callNative`, `emitFake`, `Panel`.
 - Produces:
-  - `object ChunkDownloader { const val PARALLEL = 4; fun downloadMissing(context: Context, chunks: Sequence<ChunkId>, shouldContinue: () -> Boolean, onChunk: (ok: Boolean) -> Unit): Int }` : renvoie le nombre d'échecs. La phase 5 l'utilise pour les claims.
+  - `object ChunkDownloader { const val PARALLEL = 2; fun downloadMissing(context: Context, chunks: Sequence<ChunkId>, shouldContinue: () -> Boolean, onChunk: (ok: Boolean) -> Unit): Int }` : renvoie le nombre d'échecs, appelle `ChunkSource.download(id, interactive = false)`. La phase 5 l'utilise pour les claims.
   - `object AppSettings { fun prefetchOnMobileData(context): Boolean; fun setPrefetchOnMobileData(context, on: Boolean) }`.
   - `class Prefetcher(context: Context) { fun onFix(fix: Location) }`.
   - TS `BridgeMethods` + `getStorageStats: { params: Record<string, never>; result: StorageStats }` avec `type StorageStats = { cacheBytes: number; cacheTargetBytes: number; claimBytes: number }` (claimBytes = 0 en phase 4), `getSettings: { params: Record<string, never>; result: AppSettings }` avec `type AppSettings = { prefetchOnMobileData: boolean }`, `setPrefetchOnMobileData: { params: { on: boolean }; result: null }`.
@@ -530,12 +530,12 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 object ChunkDownloader {
-    /** Politesse envers l'IGN, malgré l'absence de limite documentée. */
-    const val PARALLEL = 4
+    /** Moitié du plafond IGN (ChunkSource.backgroundLimit) : ne dispute pas les threads pour rien au-delà. */
+    const val PARALLEL = 2
     private const val BATCH = 64
 
     /**
-     * Télécharge les chunks absents de la base, 4 à la fois. S'arrête entre deux lots si `shouldContinue()` devient faux.
+     * Télécharge les chunks absents de la base, 2 à la fois. S'arrête entre deux lots si `shouldContinue()` devient faux.
      * `onChunk(ok)` est appelé pour chaque chunk traité (déjà présent ou téléchargé = ok). Renvoie le nombre d'échecs.
      */
     fun downloadMissing(
@@ -552,7 +552,7 @@ object ChunkDownloader {
                 if (!shouldContinue()) break
                 batch.map { id ->
                     pool.submit {
-                        val ok = store.contains(id) || ChunkSource.download(id)?.also { store.write(id, it) } != null
+                        val ok = store.contains(id) || ChunkSource.download(id, interactive = false)?.also { store.write(id, it) } != null
                         if (!ok) failures.incrementAndGet()
                         onChunk(ok)
                     }
