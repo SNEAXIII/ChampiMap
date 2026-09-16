@@ -2,7 +2,7 @@
 
 La carte demande ses chunks à `https://appassets.androidplatform.net/chunks/{z}/{x}/{y}`, domaine réservé à `WebViewAssetLoader`. Aucun domaine réel ne risque donc de recevoir une requête non interceptée. Un `PathHandler` Kotlin sert le chunk depuis une base SQLite unique s'il existe, sinon le télécharge chez l'IGN, l'enregistre, puis le renvoie avec `Access-Control-Allow-Origin: *` (MapLibre charge les tuiles en cross-origin). L'URL des tuiles est choisie à l'exécution : IGN en direct dans le navigateur du PC, chunks Kotlin sur Android. On a choisi cette solution plutôt que de gérer le cache en TypeScript (IndexedDB, ou blobs passés en base64 par le bridge JS) : faire transiter des centaines de Mo d'images par le bridge est lent, et IndexedDB est fragile à cette échelle.
 
-Le téléchargement des claims et le pré-téléchargement autour de la position tournent aussi en Kotlin, dans le service au premier plan. Android met en pause le JavaScript d'une WebView en arrière-plan, or ces téléchargements doivent continuer écran verrouillé. Kotlin sait donc calculer les chunks d'un claim. Le TypeScript garde l'UI, la sélection, l'estimation de taille et l'affichage de la progression.
+Le téléchargement des claims et le pré-téléchargement autour de la position tournent aussi en Kotlin, dans des services au premier plan (`LocationService` pour le pré-téléchargement, `DownloadService` de type dataSync pour les claims). Android met en pause le JavaScript d'une WebView en arrière-plan, or ces téléchargements doivent continuer écran verrouillé. Kotlin sait donc calculer les chunks d'un claim. Le TypeScript garde l'UI, la sélection, l'estimation de taille et l'affichage de la progression.
 
 ## Considered Options
 

@@ -4,6 +4,9 @@ type FakeHandler = (params: Record<string, unknown>) => unknown;
 let receiveRef: Receive | null = null;
 let watchId: number | null = null;
 
+type FakeClaim = { id: string; name: string; xMin: number; yMin: number; xMax: number; yMax: number; createdAt: number; status: 'complete'; bytes: number };
+const fakeClaims: FakeClaim[] = [];
+
 /** Pousse un événement comme le ferait Kotlin (navigateur du PC uniquement). */
 export function emitFake(event: string, payload: unknown): void {
   receiveRef?.(JSON.stringify({ event, payload }));
@@ -18,6 +21,27 @@ const handlers: Record<string, FakeHandler> = {
     localStorage.setItem('prefetchOnMobileData', String(params.on === true));
     return null;
   },
+  // Navigateur du PC : pas de téléchargement, une zone est « complète » dès sa création.
+  listClaims: () => [...fakeClaims],
+  createClaim: (params) => {
+    fakeClaims.unshift({ ...(params as Omit<FakeClaim, 'createdAt' | 'status' | 'bytes'>), createdAt: Date.now(), status: 'complete', bytes: 0 });
+    setTimeout(() => emitFake('claimsChanged', null), 0);
+    return null;
+  },
+  renameClaim: (params) => {
+    const claim = fakeClaims.find((c) => c.id === params.id);
+    if (claim) claim.name = String(params.name);
+    setTimeout(() => emitFake('claimsChanged', null), 0);
+    return null;
+  },
+  deleteClaim: (params) => {
+    const index = fakeClaims.findIndex((c) => c.id === params.id);
+    if (index >= 0) fakeClaims.splice(index, 1);
+    setTimeout(() => emitFake('claimsChanged', null), 0);
+    return null;
+  },
+  getChunkSizeAverages: () => ({}),
+  getAvailableRegions: () => [],
   startLocation: () => {
     if (watchId !== null || !('geolocation' in navigator)) return null;
     watchId = navigator.geolocation.watchPosition(

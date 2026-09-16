@@ -19,3 +19,8 @@ textarea {
   user-select: text;
   -webkit-user-select: text;
 }
+
+/* Mode sélection de zone : un doigt dessine, deux doigts déplacent. MapLibre afficherait « utilisez deux doigts ». */
+.maplibregl-cooperative-gesture-screen {
+  display: none !important;
+}

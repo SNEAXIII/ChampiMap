@@ -7,6 +7,7 @@ import { CreateWaypointSheet } from './components/CreateWaypointSheet';
 import { WaypointSheet } from './components/WaypointSheet';
 import { WaypointList } from './components/WaypointList';
 import { BottomBar } from './components/BottomBar';
+import { ClaimSelection } from './components/ClaimSelection';
 import { SettingsPanel } from './components/SettingsPanel';
 import { GpsBadge } from './components/GpsBadge';
 import { PositionLayer } from './components/PositionLayer';
@@ -35,6 +36,7 @@ export function App() {
   const [listReference, setListReference] = useState<LatLon>({ latitude: 0, longitude: 0 });
   const [followMode, setFollowMode] = useState<FollowMode>('free');
   const [centerOnNextFix, setCenterOnNextFix] = useState(false);
+  const [selecting, setSelecting] = useState(false);
   const waypoints = useWaypoints();
   const location = useLocation();
   const fix = location.fix;
@@ -43,10 +45,11 @@ export function App() {
   const openCreateSheet = useCallback((lngLat: LngLat) => {
     setSheet({ kind: 'create', position: { latitude: lngLat.lat, longitude: lngLat.lng }, defaultName: defaultWaypointName() });
   }, []);
-  const viseur = useLongPressViseur(map, openCreateSheet);
+  // Pas de viseur ni de création de waypoint en mode sélection de zone.
+  const viseur = useLongPressViseur(selecting ? null : map, openCreateSheet);
 
   // Bouton retour Android : ferme la feuille, sinon le panneau.
-  const hasLayer = sheet !== null || panel !== null;
+  const hasLayer = sheet !== null || panel !== null || selecting;
   useEffect(() => {
     callNative('setBackEnabled', { enabled: hasLayer }).catch(console.warn);
   }, [hasLayer]);
@@ -54,9 +57,10 @@ export function App() {
     () =>
       onNative('back', () => {
         if (sheet) setSheet(null);
+        else if (selecting) setSelecting(false);
         else setPanel(null);
       }),
-    [sheet],
+    [sheet, selecting],
   );
 
   // Déplacer la carte au doigt quitte Centré/Suivi.
@@ -169,6 +173,7 @@ export function App() {
             onClose={() => setSheet(null)}
           />
         )}
+        {selecting && map && <ClaimSelection map={map} onDone={() => setSelecting(false)} />}
         {panel === 'waypoints' && (
           <WaypointList waypoints={waypoints} reference={listReference} onPick={showWaypoint} onClose={() => setPanel(null)} />
         )}
@@ -176,6 +181,11 @@ export function App() {
       </div>
       <BottomBar
         onOpenWaypoints={openWaypointList}
+        onOpenClaims={() => {
+          setSheet(null);
+          setPanel(null);
+          setSelecting(true);
+        }}
         onOpenSettings={() => {
           setSheet(null);
           setPanel('settings');

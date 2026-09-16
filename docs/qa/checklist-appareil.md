@@ -63,3 +63,13 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 
 ## Phase 5 — zones hors ligne (à vérifier une fois la phase implémentée)
 - [ ] E1 Supprimer une zone hors ligne : la taille de `chunks.db` (`run-as fr.champimap ls -la databases/`) diminue
+
+### Task 1 — création et téléchargement
+- [ ] F1 Mise à jour depuis la phase 4 : l'app démarre sans crash (migration `chunks.db` v1 → v2) ; `logcat` (AndroidRuntime, SQLite) propre
+- [ ] F2 Zoom niveau 11 sur une zone jamais vue, tap « Zones hors ligne » : la grille apparaît
+- [ ] F3 Un doigt sur ~2 cases : rectangle vert aligné sur la grille, « 2 cases · ≈ N Mo » ; la carte n'a pas bougé
+- [ ] F4 [Télécharger] → nom « Zone du JJ/MM » → [Télécharger] : le mode sélection se ferme, la notification « Téléchargement des zones hors ligne » montre un pourcentage qui augmente
+- [ ] F5 App en arrière-plan (Home) pendant 60 s : la notification progresse toujours
+- [ ] F6 Mode avion pendant le téléchargement : la notification passe à « en attente du réseau » ; désactiver le mode avion : la progression reprend
+- [ ] F7 Forcer l'arrêt de l'app pendant le téléchargement puis la relancer : la notification réapparaît, la progression continue sans repartir de zéro
+- [ ] F8 Téléchargement terminé : mode avion, relancer, zoomer au niveau 17 dans la zone → carte nette ; remettre le mode avion à OFF (`airplane_mode_on` = `0`)
