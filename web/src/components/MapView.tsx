@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { AttributionControl, Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { ignStyle, START_CENTER, START_ZOOM } from '../map/ign';
+import { CHUNK_TILE_URL, createIgnStyle, PLAN_IGN_TILE_URL, START_CENTER, START_ZOOM } from '../map/ign';
+import { isAndroid } from '../bridge/bridge';
 
 type Props = {
   onMapReady: (map: MapLibreMap) => void;
@@ -14,7 +15,7 @@ export function MapView({ onMapReady }: Props) {
     const container = containerRef.current!;
     const map = new MapLibreMap({
       container,
-      style: ignStyle,
+      style: createIgnStyle(isAndroid ? CHUNK_TILE_URL : PLAN_IGN_TILE_URL),
       center: START_CENTER,
       zoom: START_ZOOM,
       maxZoom: 20,

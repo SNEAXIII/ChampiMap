@@ -78,6 +78,8 @@ class MainActivity : ComponentActivity() {
         // Release : sert assets/web/ sur https://appassets.androidplatform.net/assets/web/.
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            // Chunks de carte : cache SQLite, sinon IGN (ADR 0001).
+            .addPathHandler("/chunks/", ChunkPathHandler(this))
             .build()
 
         webView = WebView(this).apply {
