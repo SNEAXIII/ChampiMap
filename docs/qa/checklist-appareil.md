@@ -44,8 +44,22 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 - [ ] D1 En ligne : carte Plan IGN servie via `/chunks/`, aucune erreur CORS dans logcat
 - [ ] D2 Après 3 glissés + 2 zooms : `run-as fr.champimap ls -la databases/` montre `chunks.db` non vide
 - [ ] D3 Mode avion + relance : zone parcourue affichée depuis le cache, zone jamais vue beige
-- [ ] D4 Wi-Fi + GPS actif : « Cartes vues récemment » augmente nettement en 2 min (pré-téléchargement des 9 zones)
+- [ ] D4 Wi-Fi + GPS actif, panneau Paramètres laissé ouvert : « Cartes vues récemment » augmente nettement en 2 min sans avoir à fermer puis rouvrir le panneau (rafraîchi toutes les 3 s)
 - [ ] D5 « aussi en données mobiles » coché survit à une relance ; le décocher
 - [ ] D6 Mode avion : zoom 17 autour de soi sans avoir parcouru la zone → carte affichée (pré-téléchargée)
 - [ ] D7 Pré-téléchargement stoppé quand le GPS est arrêté (Stop)
 - [ ] D8 Remettre le mode avion à OFF (`airplane_mode_on` = 0)
+- [ ] D9 Disque presque plein + mode avion : tuiles déjà vues toujours affichées, pas de boucle de re-téléchargement
+- [ ] D10 Taille réelle de `chunks.db` (+ `-wal`/`-shm`) proche de « Cartes vues récemment »
+- [ ] D11 Cache stable ≤ 500 Mo dans la durée, WAL de quelques Mo au repos
+- [ ] D12 Réseau lent : tuiles en cache servies immédiatement, pas d'ANR
+- [ ] D13 Retour du réseau après coupure : les tuiles beiges se chargent seules, sans action
+- [ ] D14 Wi-Fi coupé pendant un pré-téléchargement (données mobiles non cochées) : conso data quasi nulle
+- [ ] D15 Position à la limite de deux secteurs : pas de pré-téléchargement relancé toutes les 5 s
+- [ ] D16 Réseau coupé pendant un pré-téléchargement puis rétabli : reprise au fix suivant, pas de crash au Stop
+- [ ] D17 `logcat` (AndroidRuntime, SQLite) propre après 30 min d'utilisation
+- [ ] D18 Tuiles OK en debug (localhost) et en release (appassets)
+- [ ] D19 Hors ligne au zoom 17 sur une zone où seuls z15-16 ont été vus : tuile floue affichée, jamais beige
+
+## Phase 5 — zones hors ligne (à vérifier une fois la phase implémentée)
+- [ ] E1 Supprimer une zone hors ligne : la taille de `chunks.db` (`run-as fr.champimap ls -la databases/`) diminue

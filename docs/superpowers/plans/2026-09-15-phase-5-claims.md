@@ -111,7 +111,9 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.DatabaseUtils
 import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
 import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
 import java.util.concurrent.atomic.AtomicInteger
 
 data class Claim(
@@ -137,6 +139,17 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
 
     init {
         setWriteAheadLoggingEnabled(true)
+    }
+
+    override fun onConfigure(db: SQLiteDatabase) {
+        super.onConfigure(db)
+        // Doit précéder la création des tables ; sans effet sur une base déjà en version 1 (auto_vacuum ne se
+        // change qu'à la création, une base existante resterait en NONE — sans incidence ici, la phase 4 n'a
+        // jamais publié de version sans auto_vacuum).
+        db.execSQL("PRAGMA auto_vacuum = INCREMENTAL")
+        // Un peu moins durable que FULL en cas de coupure brutale, contre moins d'E/S à chaque écriture ; le WAL
+        // (activé ci-dessus) protège déjà des corruptions liées à un crash pendant une transaction.
+        db.execSQL("PRAGMA synchronous = NORMAL")
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -176,10 +189,16 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
             val now = System.currentTimeMillis()
             // Rafraîchir la date d'accès au plus une fois par minute : évite une écriture par tuile affichée.
             if (now - cursor.getLong(1) > TOUCH_INTERVAL_MS) {
-                writableDatabase.execSQL(
-                    "UPDATE chunks SET last_access = ? WHERE z = ? AND x = ? AND y = ?",
-                    arrayOf<Any>(now, id.z, id.x, id.y),
-                )
+                try {
+                    writableDatabase.execSQL(
+                        "UPDATE chunks SET last_access = ? WHERE z = ? AND x = ? AND y = ?",
+                        arrayOf<Any>(now, id.z, id.x, id.y),
+                    )
+                } catch (e: SQLiteException) {
+                    // Best-effort (ex. disque plein) : la tuile déjà lue est quand même servie, seule sa date
+                    // d'accès n'est pas rafraîchie, elle sera juste un peu plus tôt candidate au nettoyage.
+                    Log.w(TAG, "Rafraîchissement de last_access impossible pour $id", e)
+                }
             }
             return cursor.getBlob(0)
         }
@@ -227,10 +246,14 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
     /** Supprime les chunks non claimés les plus anciennement vus jusqu'à repasser sous 95 % de la cible. */
     @Synchronized
     fun trimCache() {
-        val floor = cacheTargetBytes() * 95 / 100
-        // Le total est calculé une fois, puis ajusté par lot : appeler cacheBytes() (un SUM(size) avec
-        // sous-requête claims) à chaque tour, potentiellement des centaines de fois, est inutile.
+        val target = cacheTargetBytes()
         var total = cacheBytes()
+        // Rien à faire tant qu'on n'a pas dépassé la cible elle-même : on évite ainsi le scan NOT EXISTS
+        // (jointure contre claims) à chaque écriture, et on ne vise la marge de 95 % que lorsqu'il faut
+        // réellement nettoyer.
+        if (total <= target) return
+        val floor = target * 95 / 100
+        var deletedAny = false
         while (total > floor) {
             var batchBytes = 0L
             val rowids = ArrayList<Long>(TRIM_BATCH)
@@ -248,6 +271,12 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
             if (rowids.isEmpty()) break
             writableDatabase.execSQL("DELETE FROM chunks WHERE rowid IN (${rowids.joinToString(",")})")
             total -= batchBytes
+            deletedAny = true
+        }
+        // Rend au système de fichiers l'espace des pages supprimées (auto_vacuum = INCREMENTAL ne le fait pas
+        // seul). Couvre aussi deleteClaim() ci-dessous, qui termine toujours par un appel à trimCache().
+        if (deletedAny) {
+            writableDatabase.rawQuery("PRAGMA incremental_vacuum", null).use { while (it.moveToNext()) { } }
         }
     }
 
@@ -334,6 +363,7 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
     companion object {
         const val CACHE_TARGET_BYTES = 500L * 1024 * 1024
         const val GLOBAL_LIMIT_BYTES = 1024L * 1024 * 1024
+        private const val TAG = "ChunkStore"
         private const val DB_NAME = "chunks.db"
         private const val DB_VERSION = 2
         private const val TOUCH_INTERVAL_MS = 60_000L
@@ -422,6 +452,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.concurrent.thread
@@ -434,7 +465,14 @@ class DownloadService : Service() {
 
     private val working = AtomicBoolean(false)
     private val store by lazy { ChunkStore.get(this) }
+
+    @Volatile
     private var lastNotificationAt = 0L
+
+    // Mis à vrai par onTimeout/onDestroy, lu depuis le thread de téléchargement (shouldContinue, boucles de
+    // download/waitForNetwork) : arrête la passe en cours sans attendre la fin du claim ou du réseau.
+    @Volatile
+    private var stopped = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -443,10 +481,14 @@ class DownloadService : Service() {
         if (working.compareAndSet(false, true)) {
             thread(name = "claims-download") {
                 try {
-                    while (true) {
+                    while (!stopped) {
                         val claim = store.firstClaimWithStatus(Claim.DOWNLOADING) ?: break
                         download(claim)
                     }
+                } catch (e: Exception) {
+                    // Le thread tourne sans UI pour rattraper une exception : une exception non gérée ici tuerait
+                    // le processus, y compris avec l'app en arrière-plan.
+                    Log.w(TAG, "Téléchargement des zones hors ligne interrompu par une erreur inattendue", e)
                 } finally {
                     working.set(false)
                     stopForeground(STOP_FOREGROUND_REMOVE)
@@ -459,23 +501,29 @@ class DownloadService : Service() {
 
     // Android 15 limite la durée des services dataSync : on s'arrête proprement, la reprise se fera au prochain lancement.
     override fun onTimeout(startId: Int, fgsType: Int) {
+        stopped = true
         stopSelf()
+    }
+
+    override fun onDestroy() {
+        stopped = true
+        super.onDestroy()
     }
 
     private fun download(claim: Claim) {
         val total = ChunkMath.countChunksOfRegions(claim.xMin, claim.yMin, claim.xMax, claim.yMax)
         var failedPasses = 0
-        while (store.claimExists(claim.id)) {
+        while (!stopped && store.claimExists(claim.id)) {
             waitForNetwork(claim, total)
-            if (!store.claimExists(claim.id)) break
+            if (stopped || !store.claimExists(claim.id)) break
             val done = AtomicLong()
             val result = ChunkDownloader.downloadMissing(
                 this,
                 ChunkMath.chunksOfRegions(claim.xMin, claim.yMin, claim.xMax, claim.yMax),
-                shouldContinue = { Network.isOnline(this) && store.claimExists(claim.id) },
+                shouldContinue = { !stopped && Network.isOnline(this) && store.claimExists(claim.id) },
                 onChunk = { publish(claim, done.incrementAndGet(), total, waitingForNetwork = false) },
             )
-            if (result.cancelled) continue // passe interrompue (réseau perdu ou zone supprimée)
+            if (result.cancelled) continue // passe interrompue (réseau perdu, zone supprimée ou service arrêté)
             // Des chunks hors couverture IGN échouent toujours : on n'insiste pas au-delà de 3 passes.
             if (result.failures == 0 || ++failedPasses >= MAX_FAILED_PASSES) {
                 store.setClaimStatus(claim.id, Claim.COMPLETE)
@@ -487,7 +535,7 @@ class DownloadService : Service() {
     }
 
     private fun waitForNetwork(claim: Claim, total: Long) {
-        while (!Network.isOnline(this) && store.claimExists(claim.id)) {
+        while (!stopped && !Network.isOnline(this) && store.claimExists(claim.id)) {
             publish(claim, 0, total, waitingForNetwork = true)
             Thread.sleep(NETWORK_POLL_MS)
         }
@@ -531,6 +579,7 @@ class DownloadService : Service() {
     }
 
     companion object {
+        private const val TAG = "DownloadService"
         private const val CHANNEL_ID = "downloads"
         private const val NOTIFICATION_ID = 2
         private const val NETWORK_POLL_MS = 5_000L
@@ -573,10 +622,13 @@ class DownloadService : Service() {
 ```kotlin
         bridge.handle("getStorageStats") {
             val store = ChunkStore.get(this)
+            // Un seul calcul de claimBytes() (jointure contre claims) : cacheBytes()/cacheTargetBytes() en
+            // dérivent chacun un, l'appeler trois fois répéterait la même requête coûteuse.
+            val claimBytes = store.claimBytes()
             JSONObject()
-                .put("cacheBytes", store.cacheBytes())
-                .put("cacheTargetBytes", store.cacheTargetBytes())
-                .put("claimBytes", store.claimBytes())
+                .put("cacheBytes", store.totalBytes() - claimBytes)
+                .put("cacheTargetBytes", minOf(ChunkStore.CACHE_TARGET_BYTES, maxOf(0L, ChunkStore.GLOBAL_LIMIT_BYTES - claimBytes)))
+                .put("claimBytes", claimBytes)
         }
 ```
 

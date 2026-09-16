@@ -101,7 +101,7 @@ docs/adr/0001-cache-chunks-interception-kotlin-sqlite.md   + URL /chunks/ sur ap
     - `totalBytes(): Long`, `trimCache()` ;
     - constante `CACHE_TARGET_BYTES = 500 * 1024 * 1024`.
     - La phase 5 passe la base en version 2 (table `claims`) et change la cible de nettoyage.
-  - `object ChunkSource { fun download(id: ChunkId): ByteArray? }`.
+  - `object ChunkSource { fun download(id: ChunkId, interactive: Boolean = true): ByteArray? }` (plafond IGN de 4 requêtes simultanées réparti en deux `Semaphore(2)`, interactif/fond).
   - `object Network { fun isOnline(context: Context): Boolean; fun isUnmetered(context: Context): Boolean }`.
   - `class ChunkPathHandler(context: Context) : WebViewAssetLoader.PathHandler`.
   - TS : `createIgnStyle(tileUrl: string): StyleSpecification`, `CHUNK_TILE_URL`, `PLAN_IGN_TILE_URL`, `MAX_DETAIL_ZOOM`, `START_CENTER`, `START_ZOOM` (plus d'export `ignStyle`).
@@ -173,7 +173,9 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.DatabaseUtils
 import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
 import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Base SQLite unique des chunks (ADR 0001). */
@@ -183,6 +185,15 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
 
     init {
         setWriteAheadLoggingEnabled(true)
+    }
+
+    override fun onConfigure(db: SQLiteDatabase) {
+        super.onConfigure(db)
+        // Doit précéder la création des tables (base en version 1, jamais publiée : pas de migration à écrire).
+        db.execSQL("PRAGMA auto_vacuum = INCREMENTAL")
+        // Un peu moins durable que FULL en cas de coupure brutale, contre moins d'E/S à chaque écriture ; le WAL
+        // (activé ci-dessus) protège déjà des corruptions liées à un crash pendant une transaction.
+        db.execSQL("PRAGMA synchronous = NORMAL")
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -206,10 +217,16 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
             val now = System.currentTimeMillis()
             // Rafraîchir la date d'accès au plus une fois par minute : évite une écriture par tuile affichée.
             if (now - cursor.getLong(1) > TOUCH_INTERVAL_MS) {
-                writableDatabase.execSQL(
-                    "UPDATE chunks SET last_access = ? WHERE z = ? AND x = ? AND y = ?",
-                    arrayOf<Any>(now, id.z, id.x, id.y),
-                )
+                try {
+                    writableDatabase.execSQL(
+                        "UPDATE chunks SET last_access = ? WHERE z = ? AND x = ? AND y = ?",
+                        arrayOf<Any>(now, id.z, id.x, id.y),
+                    )
+                } catch (e: SQLiteException) {
+                    // Best-effort (ex. disque plein) : la tuile déjà lue est quand même servie, seule sa date
+                    // d'accès n'est pas rafraîchie, elle sera juste un peu plus tôt candidate au nettoyage.
+                    Log.w(TAG, "Rafraîchissement de last_access impossible pour $id", e)
+                }
             }
             return cursor.getBlob(0)
         }
@@ -241,12 +258,34 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
     /** Supprime les chunks les plus anciennement vus jusqu'à repasser sous 95 % de la cible. */
     @Synchronized
     fun trimCache() {
-        val floor = cacheTargetBytes() * 95 / 100
-        while (totalBytes() > floor) {
-            val deleted = writableDatabase.compileStatement(
-                "DELETE FROM chunks WHERE rowid IN (SELECT rowid FROM chunks ORDER BY last_access LIMIT $TRIM_BATCH)",
-            ).executeUpdateDelete()
-            if (deleted == 0) break
+        val target = cacheTargetBytes()
+        var total = totalBytes()
+        // Rien à faire tant qu'on n'a pas dépassé la cible elle-même : on ne vise la marge de 95 % que
+        // lorsqu'il faut réellement nettoyer, pour ne pas frotter contre le seuil à chaque écriture.
+        if (total <= target) return
+        val floor = target * 95 / 100
+        var deletedAny = false
+        while (total > floor) {
+            var batchBytes = 0L
+            val rowids = ArrayList<Long>(TRIM_BATCH)
+            writableDatabase.rawQuery(
+                "SELECT rowid, size FROM chunks ORDER BY last_access LIMIT $TRIM_BATCH",
+                null,
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    rowids += cursor.getLong(0)
+                    batchBytes += cursor.getLong(1)
+                }
+            }
+            if (rowids.isEmpty()) break
+            writableDatabase.execSQL("DELETE FROM chunks WHERE rowid IN (${rowids.joinToString(",")})")
+            total -= batchBytes
+            deletedAny = true
+        }
+        // Rend au système de fichiers l'espace des pages supprimées (auto_vacuum = INCREMENTAL ne le fait pas
+        // seul, il faut l'appeler explicitement), sinon chunks.db ne rétrécit jamais malgré le nettoyage.
+        if (deletedAny) {
+            writableDatabase.rawQuery("PRAGMA incremental_vacuum", null).use { while (it.moveToNext()) { } }
         }
     }
 
@@ -254,6 +293,7 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
 
     companion object {
         const val CACHE_TARGET_BYTES = 500L * 1024 * 1024
+        private const val TAG = "ChunkStore"
         private const val DB_NAME = "chunks.db"
         private const val DB_VERSION = 1
         private const val TOUCH_INTERVAL_MS = 60_000L
@@ -279,10 +319,19 @@ package fr.champimap
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.Semaphore
 
 /** Plan IGN v2 (Géoplateforme, WMTS sans clé). */
 object ChunkSource {
     private const val USER_AGENT = "ChampiMap/0.1 (carte hors ligne, usage personnel)"
+    private const val CONNECT_TIMEOUT_MS = 5_000
+    private const val READ_TIMEOUT_MS = 8_000
+
+    // Plafond global de requêtes IGN simultanées (contrainte du plan), réparti en deux moitiés pour que les
+    // téléchargements de fond (ChunkDownloader, pré-téléchargement puis claims) ne puissent jamais affamer les
+    // tuiles à l'écran (ChunkPathHandler, threads WebView non bornés) : 2 + 2 = 4 requêtes IGN au total.
+    private val interactiveLimit = Semaphore(2)
+    private val backgroundLimit = Semaphore(2)
 
     private fun url(id: ChunkId) =
         "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0" +
@@ -290,21 +339,28 @@ object ChunkSource {
             "&TILEMATRIX=${id.z}&TILEROW=${id.y}&TILECOL=${id.x}&FORMAT=image/png"
 
     /** Octets PNG du chunk, ou null (hors couverture, erreur réseau, réponse inattendue). */
-    fun download(id: ChunkId): ByteArray? {
-        val connection = URL(url(id)).openConnection() as HttpURLConnection
-        connection.connectTimeout = 10_000
-        connection.readTimeout = 15_000
-        connection.setRequestProperty("User-Agent", USER_AGENT)
-        return try {
-            if (connection.responseCode == 200 && connection.contentType?.startsWith("image/") == true) {
-                connection.inputStream.use { it.readBytes() }
-            } else {
+    fun download(id: ChunkId, interactive: Boolean = true): ByteArray? {
+        val limit = if (interactive) interactiveLimit else backgroundLimit
+        limit.acquire()
+        try {
+            var connection: HttpURLConnection? = null
+            return try {
+                connection = URL(url(id)).openConnection() as HttpURLConnection
+                connection.connectTimeout = CONNECT_TIMEOUT_MS
+                connection.readTimeout = READ_TIMEOUT_MS
+                connection.setRequestProperty("User-Agent", USER_AGENT)
+                if (connection.responseCode == 200 && connection.contentType?.startsWith("image/") == true) {
+                    connection.inputStream.use { it.readBytes() }
+                } else {
+                    null
+                }
+            } catch (e: IOException) {
                 null
+            } finally {
+                connection?.disconnect()
             }
-        } catch (e: IOException) {
-            null
         } finally {
-            connection.disconnect()
+            limit.release()
         }
     }
 }
@@ -343,13 +399,16 @@ object Network {
 package fr.champimap
 
 import android.content.Context
+import android.database.sqlite.SQLiteException
+import android.util.Log
 import android.webkit.WebResourceResponse
 import androidx.webkit.WebViewAssetLoader
 import java.io.ByteArrayInputStream
 
 /**
  * Sert `/chunks/{z}/{x}/{y}` : depuis le cache, sinon depuis l'IGN si le réseau est là (et on garde le chunk).
- * Appelé sur un thread de la WebView, jamais le thread UI.
+ * Appelé sur un thread de la WebView, jamais le thread UI : `WebViewAssetLoader` ne rattrape aucune exception
+ * levée ici, une exception non gérée ferait donc planter l'app (ex. `SQLiteFullException` disque plein).
  */
 class ChunkPathHandler(context: Context) : WebViewAssetLoader.PathHandler {
 
@@ -357,18 +416,47 @@ class ChunkPathHandler(context: Context) : WebViewAssetLoader.PathHandler {
     private val store = ChunkStore.get(appContext)
 
     override fun handle(path: String): WebResourceResponse {
+        try {
+            val id = parseId(path) ?: return response(404, "Not Found", EMPTY)
+
+            val cached = try {
+                store.read(id)
+            } catch (e: SQLiteException) {
+                Log.w(TAG, "Lecture du cache impossible pour $id, on retélécharge", e)
+                null
+            }
+
+            val data = cached ?: if (Network.isOnline(appContext)) {
+                ChunkSource.download(id)?.also { downloaded ->
+                    // Écriture séparée : si elle échoue (ex. disque plein), la tuile déjà téléchargée
+                    // est quand même servie, elle ne sera simplement pas gardée en cache.
+                    try {
+                        store.write(id, downloaded)
+                    } catch (e: SQLiteException) {
+                        Log.w(TAG, "Écriture du cache impossible pour $id (disque plein ?)", e)
+                    }
+                }
+            } else {
+                null
+            }
+
+            return if (data != null) response(200, "OK", data) else response(404, "Not Found", EMPTY)
+        } catch (e: Exception) {
+            Log.w(TAG, "Échec inattendu pour /chunks/$path", e)
+            return response(404, "Not Found", EMPTY)
+        }
+    }
+
+    private fun parseId(path: String): ChunkId? {
         val parts = path.split('/')
-        val id = if (parts.size == 3) {
-            val (z, x, y) = parts.map { it.toIntOrNull() }
-            if (z != null && x != null && y != null) ChunkId(z, x, y) else null
-        } else {
-            null
-        } ?: return response(404, "Not Found", EMPTY)
-
-        val data = store.read(id)
-            ?: if (Network.isOnline(appContext)) ChunkSource.download(id)?.also { store.write(id, it) } else null
-
-        return if (data != null) response(200, "OK", data) else response(404, "Not Found", EMPTY)
+        if (parts.size != 3) return null
+        val z = parts[0].toIntOrNull() ?: return null
+        val x = parts[1].toIntOrNull() ?: return null
+        val y = parts[2].toIntOrNull() ?: return null
+        if (z !in 0..ChunkMath.MAX_DETAIL_ZOOM) return null
+        val tilesAtZoom = 1 shl z
+        if (x !in 0 until tilesAtZoom || y !in 0 until tilesAtZoom) return null
+        return ChunkId(z, x, y)
     }
 
     private fun response(status: Int, reason: String, data: ByteArray) = WebResourceResponse(
@@ -382,6 +470,7 @@ class ChunkPathHandler(context: Context) : WebViewAssetLoader.PathHandler {
     )
 
     private companion object {
+        const val TAG = "ChunkPathHandler"
         val EMPTY = ByteArray(0)
     }
 }
@@ -529,6 +618,7 @@ package fr.champimap
 import android.content.Context
 import android.util.Log
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /** `cancelled` : `shouldContinue()` est devenu faux avant que tous les chunks n'aient été traités. */
@@ -541,9 +631,11 @@ object ChunkDownloader {
     private const val TAG = "ChunkDownloader"
 
     /**
-     * Télécharge les chunks absents de la base, 2 à la fois. S'arrête entre deux lots si `shouldContinue()` devient
-     * faux (résultat `cancelled = true`). `onChunk(ok)` est appelé pour chaque chunk traité (déjà présent ou
-     * téléchargé = ok).
+     * Télécharge les chunks absents de la base, 2 à la fois. S'arrête entre deux lots, et aussi juste avant
+     * chaque téléchargement réseau à l'intérieur d'un lot, si `shouldContinue()` devient faux (résultat
+     * `cancelled = true`) : un lot de 64 peut mettre plusieurs secondes, le réseau ou le service peuvent partir
+     * avant la fin. Un chunk ainsi sauté ne compte ni comme réussi ni comme échoué. `onChunk(ok)` est appelé
+     * pour chaque chunk traité (déjà présent ou téléchargé = ok).
      */
     fun downloadMissing(
         context: Context,
@@ -554,11 +646,11 @@ object ChunkDownloader {
         val store = ChunkStore.get(context)
         val pool = Executors.newFixedThreadPool(PARALLEL)
         val failures = AtomicInteger()
-        var cancelled = false
+        val cancelled = AtomicBoolean(false)
         try {
             for (batch in chunks.chunked(BATCH)) {
                 if (!shouldContinue()) {
-                    cancelled = true
+                    cancelled.set(true)
                     break
                 }
                 batch.map { id ->
@@ -566,21 +658,30 @@ object ChunkDownloader {
                         // store.contains/write peut lever (SQLiteFullException, disque plein…) : rattrapé ici plutôt
                         // que de laisser it.get() (plus bas) relayer une ExecutionException hors de cette fonction,
                         // ce qui tuerait le thread appelant (le prefetch tourne sans UI pour la rattraper).
-                        val ok = try {
-                            store.contains(id) || ChunkSource.download(id, interactive = false)?.also { store.write(id, it) } != null
+                        // `ok = null` : chunk sauté (shouldContinue devenu faux), ni compté ni signalé à onChunk.
+                        val ok: Boolean? = try {
+                            when {
+                                store.contains(id) -> true
+                                !shouldContinue() -> null
+                                else -> ChunkSource.download(id, interactive = false)?.also { store.write(id, it) } != null
+                            }
                         } catch (e: Exception) {
                             Log.w(TAG, "Échec du chunk $id", e)
                             false
                         }
-                        if (!ok) failures.incrementAndGet()
-                        onChunk(ok)
+                        if (ok == null) {
+                            cancelled.set(true)
+                        } else {
+                            if (!ok) failures.incrementAndGet()
+                            onChunk(ok)
+                        }
                     }
                 }.forEach { it.get() }
             }
         } finally {
             pool.shutdown()
         }
-        return DownloadResult(failures.get(), cancelled)
+        return DownloadResult(failures.get(), cancelled.get())
     }
 }
 ```
@@ -622,6 +723,8 @@ class Prefetcher(context: Context) {
     private val appContext = context.applicationContext
 
     fun onFix(fix: Location) {
+        // Fix trop imprécis (intérieur, cold start GPS) : la région calculée serait peu fiable.
+        if (!fix.hasAccuracy() || fix.accuracy > MAX_ACCURACY_M) return
         val region = ChunkMath.tileX(fix.longitude, ChunkMath.REGION_ZOOM) to ChunkMath.tileY(fix.latitude, ChunkMath.REGION_ZOOM)
         // `shouldAttempt` (en mémoire, pas d'I/O) et le CAS de `busy` d'abord, sur le thread appelant (thread
         // principal de localisation) : `allowed()` (réseau, préférences) attend d'être dans le thread de fond
@@ -639,11 +742,7 @@ class Prefetcher(context: Context) {
                 )
                 // Une passe interrompue (réseau perdu, service arrêté) est retentée dès le prochain fix : on ne
                 // retient donc la région que si elle est allée à son terme, avec ou sans échecs.
-                if (!result.cancelled) {
-                    lastRegion = region
-                    lastRegionAt = System.currentTimeMillis()
-                    lastRegionHadFailures = result.failures > 0
-                }
+                if (!result.cancelled) recordFinished(region, hadFailures = result.failures > 0)
             } catch (e: Exception) {
                 // Le prefetch tourne sans UI pour rattraper une exception : une exception non gérée ici tuerait
                 // le processus, y compris avec l'app en arrière-plan.
@@ -654,11 +753,20 @@ class Prefetcher(context: Context) {
         }
     }
 
-    /** Même région déjà entièrement téléchargée (sans échec) : rien à refaire. Avec échecs : nouvel essai après [RETRY_AFTER_FAILURE_MS]. */
+    /**
+     * Région déjà entièrement téléchargée (sans échec) parmi les [REGION_HISTORY_SIZE] dernières régions menées
+     * à leur terme : rien à refaire. Avec échecs : nouvel essai après [RETRY_AFTER_FAILURE_MS]. On garde un petit
+     * historique (pas seulement la dernière région) pour qu'un aller-retour de la position à la frontière de deux
+     * régions (bruit GPS) ne relance pas une passe à chaque fix.
+     */
     private fun shouldAttempt(region: Pair<Int, Int>): Boolean {
-        if (region != lastRegion) return true
-        if (!lastRegionHadFailures) return false
-        return System.currentTimeMillis() - lastRegionAt > RETRY_AFTER_FAILURE_MS
+        val state = synchronized(regionHistory) { regionHistory[region] } ?: return true
+        if (!state.hadFailures) return false
+        return System.currentTimeMillis() - state.at > RETRY_AFTER_FAILURE_MS
+    }
+
+    private fun recordFinished(region: Pair<Int, Int>, hadFailures: Boolean) {
+        synchronized(regionHistory) { regionHistory[region] = RegionState(System.currentTimeMillis(), hadFailures) }
     }
 
     private fun allowed(): Boolean =
@@ -668,23 +776,26 @@ class Prefetcher(context: Context) {
             Network.isOnline(appContext) &&
             (Network.isUnmetered(appContext) || AppSettings.prefetchOnMobileData(appContext))
 
+    private data class RegionState(val at: Long, val hadFailures: Boolean)
+
     private companion object {
         const val TAG = "Prefetcher"
         const val RETRY_AFTER_FAILURE_MS = 15 * 60 * 1000L
+        const val MAX_ACCURACY_M = 300f
+        const val REGION_HISTORY_SIZE = 9
 
         // Partagés entre toutes les instances (pas seulement `this` object : LocationService recrée un
         // Prefetcher à chaque (re)démarrage du service via `by lazy`, alors qu'un thread de pré-téléchargement
         // de l'instance précédente peut encore tourner) : sinon deux passes pourraient tourner en même temps.
         val busy = AtomicBoolean(false)
 
-        @Volatile
-        var lastRegion: Pair<Int, Int>? = null
-
-        @Volatile
-        var lastRegionAt: Long = 0L
-
-        @Volatile
-        var lastRegionHadFailures: Boolean = false
+        // Bornée aux [REGION_HISTORY_SIZE] dernières régions terminées ; accès protégé par
+        // `synchronized(regionHistory)` (lu depuis le thread de localisation, écrit depuis le thread de
+        // pré-téléchargement, potentiellement en parallèle).
+        val regionHistory = object : LinkedHashMap<Pair<Int, Int>, RegionState>() {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Int, Int>, RegionState>) =
+                size > REGION_HISTORY_SIZE
+        }
     }
 }
 ```
@@ -784,18 +895,39 @@ type Props = {
 
 export function SettingsPanel({ onClose }: Props) {
   const [stats, setStats] = useState<StorageStats | null>(null);
+  const [statsUnavailable, setStatsUnavailable] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   useEffect(() => {
-    void callNative('getStorageStats', {}).then(setStats);
-    void callNative('getSettings', {}).then(setSettings);
+    const fetchStats = () =>
+      callNative('getStorageStats', {})
+        .then(setStats)
+        .catch((error: unknown) => {
+          console.warn(error);
+          setStatsUnavailable(true);
+        });
+    fetchStats();
+    // Pré-téléchargement et nettoyage tournent en tâche de fond : rafraîchir pendant que le panneau est
+    // ouvert évite d'avoir à le refermer puis le rouvrir pour voir le stockage évoluer.
+    const interval = setInterval(fetchStats, 3_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    // Échec silencieux (hors console) : la case reste désactivée (settings reste null), ce qui est le
+    // comportement voulu quand on ne connaît pas l'état réel du réglage.
+    callNative('getSettings', {}).then(setSettings).catch(console.warn);
   }, []);
 
   const togglePrefetch = async () => {
     if (!settings) return;
     const next = !settings.prefetchOnMobileData;
-    await callNative('setPrefetchOnMobileData', { on: next });
-    setSettings({ ...settings, prefetchOnMobileData: next });
+    try {
+      await callNative('setPrefetchOnMobileData', { on: next });
+      setSettings((s) => s && { ...s, prefetchOnMobileData: next });
+    } catch (error) {
+      console.warn(error);
+    }
   };
 
   return (
@@ -816,6 +948,8 @@ export function SettingsPanel({ onClose }: Props) {
               </li>
               <li>Zones hors ligne : {formatBytes(stats.claimBytes)}</li>
             </ul>
+          ) : statsUnavailable ? (
+            <p className="text-gray-500">Indisponible</p>
           ) : (
             <p className="text-gray-500">Calcul…</p>
           )}
@@ -833,7 +967,8 @@ export function SettingsPanel({ onClose }: Props) {
             <span>
               Pré-télécharger la carte autour de moi aussi en données mobiles
               <span className="block text-sm text-gray-500">
-                En Wi-Fi, c'est automatique. Compter 100 à 250 Mo à chaque nouveau secteur.
+                En Wi-Fi, c'est automatique quand la position est suivie. Compter 100 à 250 Mo à chaque nouveau
+                secteur.
               </span>
             </span>
           </label>
