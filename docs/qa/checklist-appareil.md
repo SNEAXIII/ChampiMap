@@ -144,3 +144,4 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] L5 Créer un waypoint « Ici » sur sa propre position (tap point bleu → Créer), le cibler : bandeau vert « ✅ Arrivé · Ici » (distance < 10 m). La cible n'est pas arrêtée automatiquement
 - [ ] L6 ✕ sur le bandeau : bandeau et flèche disparaissent. Hors Suivi, le flag KEEP_SCREEN_ON disparaît
 - [ ] L7 Cibler un waypoint, relancer l'app : la cible est toujours active. Supprimer ce waypoint : la cible disparaît
+- [ ] L8 Cible active : le « ⓘ » d'attribution IGN (bas à gauche) reste visible sous le bandeau et reste tapable
