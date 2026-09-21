@@ -131,14 +131,14 @@ jobs:
           if-no-files-found: error
 
   # ===================================================================
-  # Job 2 — Déploiement : Release roulante « latest », sur push main uniquement,
+  # Job 2 — Déploiement : Release roulante « latest », sur main (push ou relance manuelle),
   #         et seulement si l'APK est signée avec la vraie clé.
   # ===================================================================
   deploy:
     name: Déployer la Release (latest)
     needs: android
     if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' &&
       needs.android.outputs.signed == 'true'
     runs-on: ubuntu-latest
     permissions:
