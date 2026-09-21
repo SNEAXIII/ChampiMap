@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import { LuTriangleAlert } from 'react-icons/lu';
-import { callNative, isAndroid, type StorageStats } from '../bridge/bridge';
+import { callNative, isAndroid, type Claim, type StorageStats } from '../bridge/bridge';
 import { formatBytes } from '../format/formatBytes';
 import {
   estimateBytes,
@@ -16,11 +16,14 @@ import {
 
 type Props = {
   map: MapLibreMap;
+  /** Zones déjà créées, affichées sous la grille pour ne pas les retélécharger. */
+  claims: Claim[];
   onDone: () => void;
 };
 
 const GRID_SOURCE = 'selection-grid';
 const RECT_SOURCE = 'selection-rect';
+const CLAIMS_SOURCE = 'selection-claims';
 const GRID_MIN_ZOOM = 9;
 const EMPTY = { type: 'FeatureCollection', features: [] } as const;
 
@@ -30,7 +33,7 @@ function defaultClaimName(date = new Date()): string {
 }
 
 /** Mode sélection : grille de cases, un doigt (ou la souris sur PC) trace le rectangle. */
-export function ClaimSelection({ map, onDone }: Props) {
+export function ClaimSelection({ map, claims, onDone }: Props) {
   const [rect, setRect] = useState<RegionRect | null>(null);
   const [averages, setAverages] = useState<Record<string, number>>({});
   const [stats, setStats] = useState<StorageStats | null>(null);
@@ -59,6 +62,28 @@ export function ClaimSelection({ map, onDone }: Props) {
 
   // Couches grille + rectangle.
   useEffect(() => {
+    // Zones existantes d'abord : dessinées sous la grille et le rectangle en cours.
+    map.addSource(CLAIMS_SOURCE, { type: 'geojson', data: EMPTY });
+    map.addLayer({
+      id: 'selection-claims-fill',
+      type: 'fill',
+      source: CLAIMS_SOURCE,
+      paint: { 'fill-color': '#0f766e', 'fill-opacity': ['case', ['==', ['get', 'status'], 'complete'], 0.3, 0.15] },
+    });
+    map.addLayer({
+      id: 'selection-claims-line',
+      type: 'line',
+      source: CLAIMS_SOURCE,
+      filter: ['==', ['get', 'status'], 'complete'],
+      paint: { 'line-color': '#0f766e', 'line-width': 2 },
+    });
+    map.addLayer({
+      id: 'selection-claims-line-downloading',
+      type: 'line',
+      source: CLAIMS_SOURCE,
+      filter: ['!=', ['get', 'status'], 'complete'],
+      paint: { 'line-color': '#0f766e', 'line-width': 2, 'line-dasharray': [2, 2] },
+    });
     map.addSource(GRID_SOURCE, { type: 'geojson', data: EMPTY });
     map.addSource(RECT_SOURCE, { type: 'geojson', data: EMPTY });
     // Trait sombre bordé de blanc : un trait fin seul se confond avec les routes et courbes du Plan IGN.
@@ -92,8 +117,8 @@ export function ClaimSelection({ map, onDone }: Props) {
 
     return () => {
       map.off('moveend', drawGrid);
-      for (const layer of ['selection-grid-casing', 'selection-grid', 'selection-rect-fill', 'selection-rect-line']) if (map.getLayer(layer)) map.removeLayer(layer);
-      for (const source of [GRID_SOURCE, RECT_SOURCE]) if (map.getSource(source)) map.removeSource(source);
+      for (const layer of ['selection-claims-fill', 'selection-claims-line', 'selection-claims-line-downloading', 'selection-grid-casing', 'selection-grid', 'selection-rect-fill', 'selection-rect-line']) if (map.getLayer(layer)) map.removeLayer(layer);
+      for (const source of [CLAIMS_SOURCE, GRID_SOURCE, RECT_SOURCE]) if (map.getSource(source)) map.removeSource(source);
     };
   }, [map]);
 
@@ -179,6 +204,13 @@ export function ClaimSelection({ map, onDone }: Props) {
       window.removeEventListener('mouseup', onMouseUp);
     };
   }, [map]);
+
+  useEffect(() => {
+    (map.getSource(CLAIMS_SOURCE) as GeoJSONSource | undefined)?.setData({
+      type: 'FeatureCollection',
+      features: claims.map((claim) => ({ type: 'Feature', properties: { status: claim.status }, geometry: { type: 'Polygon', coordinates: rectRing(claim) } })),
+    });
+  }, [map, claims]);
 
   useEffect(() => {
     const source = map.getSource(RECT_SOURCE) as GeoJSONSource | undefined;

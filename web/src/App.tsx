@@ -255,7 +255,7 @@ export function App() {
             onClose={() => setSheet(null)}
           />
         )}
-        {selecting && map && <ClaimSelection map={map} onDone={() => setSelecting(false)} />}
+        {selecting && map && <ClaimSelection map={map} claims={claims} onDone={() => setSelecting(false)} />}
         {panel === 'waypoints' && (
           <WaypointList waypoints={waypoints} reference={listReference} onPick={showWaypoint} onClose={() => setPanel(null)} />
         )}
