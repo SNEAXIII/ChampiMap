@@ -18,4 +18,5 @@ Thumbs.db
 .vscode/
 
 # configuration locale (Supabase)
+web/.env
 web/.env*.local
