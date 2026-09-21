@@ -130,7 +130,8 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] K1 Téléphone posé à plat, haut du téléphone vers le nord (boussole ou repère connu) : le cône bleu du marqueur pointe vers le haut de la carte (nord en haut)
 - [ ] K2 Se tourner de 90° vers l'est : le cône pointe vers la droite de la carte
 - [ ] K3 Tap ◎ deux fois (Suivi ◉) : la carte tourne, le haut de l'écran correspond à la direction du téléphone ; se tourner lentement : la carte suit sans saccades gênantes (signaler sinon)
-- [ ] K4 Redresser le téléphone à la verticale : le bandeau « Tiens le téléphone à plat » apparaît ; le reposer à plat : il disparaît
+- [ ] K3b En Suivi, pincer pour zoomer : le geste va à son terme sans être coupé net par la rotation de la carte
+- [ ] K4 Redresser le téléphone à la verticale : le bandeau « Tiens le téléphone à plat » apparaît, et la carte arrête de tourner (garde sa dernière orientation) ; le reposer à plat : le bandeau disparaît et la carte reprend le cap
 - [ ] K5 Glisser la carte au doigt (sortie du Suivi) : la carte garde sa rotation et le bouton nord ▲ apparaît ; taper dessus : nord en haut, le bouton disparaît
 - [ ] K6 Tap ◎ (Centré) : nord en haut
 - [ ] K7 Si « Boussole imprécise » s'affiche à un moment, faire un 8 avec le téléphone : le bandeau disparaît

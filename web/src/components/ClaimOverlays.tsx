@@ -79,6 +79,9 @@ export function ClaimOverlays({ map, claims }: Props) {
     // Des rafraîchissements successifs (moveend rapprochés) peuvent répondre dans le désordre :
     // seule la dernière requête lancée a le droit de repeindre le brouillard.
     let generation = 0;
+    // moveend peut être rejoué très vite (la carte suit le cap en Suivi) : sans ce délai, chaque
+    // interruption d'easeTo relancerait un appel natif + un recalcul du brouillard.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const refresh = async () => {
       const current = ++generation;
       const view = regionsInView(map.getBounds());
@@ -104,11 +107,20 @@ export function ClaimOverlays({ map, claims }: Props) {
       }
       fogSource()?.setData({ type: 'Feature', properties: {}, geometry: { type: 'MultiPolygon', coordinates: squares } });
     };
+    const onMoveEnd = () => {
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        void refresh();
+      }, 300);
+    };
+    // Immédiat : premier calcul et bascule en ligne/hors ligne, seuls les moveend rapprochés sont différés.
     void refresh();
-    map.on('moveend', refresh);
+    map.on('moveend', onMoveEnd);
     return () => {
       cancelled = true;
-      map.off('moveend', refresh);
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+      map.off('moveend', onMoveEnd);
     };
   }, [map, claims, online, ready]);
 

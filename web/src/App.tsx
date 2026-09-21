@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LngLat, Map as MapLibreMap } from 'maplibre-gl';
 import { MapView } from './components/MapView';
 import { WaypointMarkers } from './components/WaypointMarkers';
@@ -88,6 +88,34 @@ export function App() {
     };
   }, [map]);
 
+  // Geste utilisateur (pincer/tourner/incliner) en cours : le suivi ne doit pas l'interrompre en repoussant
+  // la caméra sous lui (un pincer sans assez de déplacement pour déclencher dragstart resterait sinon coupé
+  // net par le prochain easeTo du Suivi).
+  const userGestureRef = useRef(false);
+  useEffect(() => {
+    if (!map) return;
+    const onGestureStart = (event: { originalEvent?: unknown }) => {
+      if (event.originalEvent) userGestureRef.current = true;
+    };
+    const onGestureEnd = (event: { originalEvent?: unknown }) => {
+      if (event.originalEvent) userGestureRef.current = false;
+    };
+    map.on('zoomstart', onGestureStart);
+    map.on('rotatestart', onGestureStart);
+    map.on('pitchstart', onGestureStart);
+    map.on('zoomend', onGestureEnd);
+    map.on('rotateend', onGestureEnd);
+    map.on('pitchend', onGestureEnd);
+    return () => {
+      map.off('zoomstart', onGestureStart);
+      map.off('rotatestart', onGestureStart);
+      map.off('pitchstart', onGestureStart);
+      map.off('zoomend', onGestureEnd);
+      map.off('rotateend', onGestureEnd);
+      map.off('pitchend', onGestureEnd);
+    };
+  }, [map]);
+
   // Premier tap sans position : centrer (nord en haut) dès qu'elle arrive.
   useEffect(() => {
     if (!map || !fix || !centerOnNextFix) return;
@@ -99,13 +127,19 @@ export function App() {
   // Suivi : la carte suit la position et tourne selon le cap.
   const headingDegrees = heading?.heading ?? null;
   useEffect(() => {
-    if (!map || !fix || followMode !== 'follow') return;
+    // Un geste utilisateur en cours (pincer, tourner...) ne doit pas être coupé par ce recentrage.
+    if (!map || !fix || followMode !== 'follow' || userGestureRef.current) return;
     map.easeTo({
       center: [fix.longitude, fix.latitude],
-      bearing: headingDegrees ?? map.getBearing(),
-      duration: 200,
+      // Cap dégénéré près de la verticale (téléphone redressé) : garder la rotation actuelle plutôt
+      // que suivre un azimut erratique.
+      bearing: heading && !heading.tilted ? heading.heading : map.getBearing(),
+      // Rejoué jusqu'à 10×/s (cap) : un easing par défaut redémarré à chaque appel est saccadé, linéaire
+      // et court enchaîne proprement.
+      duration: 150,
+      easing: (t) => t,
     });
-  }, [map, fix, followMode, headingDegrees]);
+  }, [map, fix, followMode, heading]);
 
   // Écran allumé uniquement en Suivi.
   useEffect(() => {

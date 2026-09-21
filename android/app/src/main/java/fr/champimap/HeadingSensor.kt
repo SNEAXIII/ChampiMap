@@ -33,6 +33,10 @@ class HeadingSensor(
     private var declination = 0f
 
     fun start() {
+        // Sans ce reset, un redémarrage (téléphone resté immobile) attendrait un mouvement d'au moins 1°
+        // avant d'émettre quoi que ce soit : le premier événement doit toujours sortir.
+        lastHeading = Double.NaN
+        lastEmitAt = 0L
         rotationVector?.let { sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
         // Le magnétomètre n'est écouté que pour sa précision (besoin de calibration).
         magnetometer?.let { sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
