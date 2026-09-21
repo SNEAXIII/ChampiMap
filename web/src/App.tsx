@@ -138,7 +138,10 @@ export function App() {
   const headingDegrees = heading?.heading ?? null;
   useEffect(() => {
     // Un geste utilisateur en cours (pincer, tourner...) ne doit pas être coupé par ce recentrage.
-    if (!map || !fix || followMode !== 'follow' || userGestureRef.current) return;
+    // Le viseur (appui long) désactive dragPan : sans cette garde, la carte tournerait encore sous
+    // un doigt immobile et le point créé au relâchement ne correspondrait plus au réticule.
+    // Idem derrière un panneau plein écran (rien à voir) : autant ne pas animer la caméra pour rien.
+    if (!map || !fix || followMode !== 'follow' || userGestureRef.current || viseur !== null || panel !== null) return;
     map.easeTo({
       center: [fix.longitude, fix.latitude],
       // Cap dégénéré près de la verticale (téléphone redressé) : garder la rotation actuelle plutôt
@@ -149,7 +152,7 @@ export function App() {
       duration: 150,
       easing: (t) => t,
     });
-  }, [map, fix, followMode, heading]);
+  }, [map, fix, followMode, heading, viseur, panel]);
 
   // Écran allumé uniquement en Suivi ou avec une Cible active.
   const keepScreenOn = followMode === 'follow' || target !== null;
