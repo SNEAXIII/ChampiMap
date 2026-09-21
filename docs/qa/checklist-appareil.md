@@ -100,3 +100,26 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 - [ ] H3 Mode avion, attendre 3 s, zoomer au niveau 11 autour d'une zone complète : les cases ni en zone ni déjà vues sont voilées, la zone complète et les secteurs parcourus ne le sont pas
 - [ ] H4 Dézoomer sous le niveau 10 : pas de voile hors ligne
 - [ ] H5 Désactiver le mode avion : le voile hors ligne disparaît sous ~3 s ; vérifier `airplane_mode_on` = `0`
+
+## Phase 6 — sauvegarde Supabase
+
+Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local.properties remplis).
+
+### Task 2 — connexion Google
+- [ ] I1 Paramètres : section « Sauvegarder mes waypoints » avec [Se connecter avec Google]
+- [ ] I2 Tap : la feuille Google Credential Manager s'ouvre ; choisir un compte soi-même
+- [ ] I3 Capture : « Connecté : <email> » ; relancer l'app (force-stop + start) : toujours connecté (session persistée)
+- [ ] I4 En cas d'erreur affichée, la rapporter mot pour mot (pistes : SHA-1 du client Android, Client IDs dans Supabase, « Nonces mismatch »)
+- [ ] I5 [Se déconnecter] : le bouton de connexion revient
+- [ ] I6 Mode avion : le bouton affiche « Connexion impossible hors ligne », l'app reste utilisable ; désactiver le mode avion, vérifier `airplane_mode_on` = `0`
+
+### Task 3 — synchronisation
+- [ ] J1 Déconnecté, créer 2 waypoints `Sync A` et `Sync B` : dans la liste, 📱 sur chacun
+- [ ] J2 Paramètres → se connecter (choisir un compte soi-même). Sous ~5 s : « ☁️ Tous les waypoints sont sauvegardés », et la liste montre ☁️ sur les deux (première connexion : rattachement et envoi)
+- [ ] J3 Demander à l'utilisateur de vérifier dans Supabase (Table Editor → waypoints) que `Sync A` et `Sync B` existent avec son `user_id`
+- [ ] J4 Mode avion (accord donné) : renommer `Sync A` en `Sync A2` et supprimer `Sync B`. La liste affiche 📱 pour `Sync A2` (et ne montre plus `Sync B`). Paramètres : « 📱 1 waypoint sur l'appareil » (compte le renommage, pas la suppression). Tenter « Se déconnecter » → « Confirmer » : message refusant la déconnexion (« 2 modifications pas encore sauvegardées » — renommage + suppression comptent ensemble)
+- [ ] J5 Désactiver le mode avion (vérifier `airplane_mode_on` = `0`). Sous ~5 s, `Sync A2` passe à ☁️. L'utilisateur vérifie dans Supabase : `Sync A2` renommé, et `deleted_at` renseigné sur `Sync B`
+- [ ] J6 Conflit : l'utilisateur modifie le `name` de `Sync A2` en `Serveur` et met `updated_at` à maintenant + 1 h dans le Table Editor. Tap « Synchroniser » : le waypoint s'appelle « Serveur » sur le téléphone
+- [ ] J6b Après J6, renommer « Serveur » en « Serveur 2 » sur le téléphone : il passe à ☁️, et Supabase (Table Editor) affiche « Serveur 2 »
+- [ ] J7 Se déconnecter (en ligne) : la liste est vide. Se reconnecter : « Serveur » revient, et `Sync B` reste supprimé (non affiché)
+- [ ] J8 Relancer l'app : aucune erreur de sync affichée, les waypoints sont toujours là

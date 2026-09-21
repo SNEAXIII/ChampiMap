@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { callNative, type AppSettings, type StorageStats } from '../bridge/bridge';
+import { AccountSection } from './AccountSection';
 import { formatBytes } from '../format/formatBytes';
 
 type Props = {
@@ -52,6 +53,7 @@ export function SettingsPanel({ onClose }: Props) {
         </button>
       </header>
       <div className="flex-1 space-y-6 overflow-y-auto p-4">
+        <AccountSection />
         <section>
           <h3 className="mb-2 text-sm font-semibold text-gray-500 uppercase">Stockage</h3>
           {stats ? (

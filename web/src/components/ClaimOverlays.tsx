@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import { callNative, type Claim } from '../bridge/bridge';
 import { rectRing, regionCount, regionSquare, regionsInView } from '../claims/regions';
+import { useOnline } from '../net/useOnline';
 
 type Props = {
   map: MapLibreMap;
@@ -13,20 +14,6 @@ const OFFLINE_FOG_SOURCE = 'offline-fog';
 const OFFLINE_FOG_MIN_ZOOM = 10;
 const MAX_FOG_REGIONS = 1600;
 const EMPTY = { type: 'FeatureCollection', features: [] } as const;
-
-function useOnline(): boolean {
-  const [online, setOnline] = useState(navigator.onLine);
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener('online', update);
-    window.addEventListener('offline', update);
-    return () => {
-      window.removeEventListener('online', update);
-      window.removeEventListener('offline', update);
-    };
-  }, []);
-  return online;
-}
 
 /**
  * Brouillard :

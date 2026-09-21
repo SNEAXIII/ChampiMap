@@ -31,6 +31,7 @@ export type BridgeMethods = {
   deleteClaim: { params: { id: string }; result: null };
   getChunkSizeAverages: { params: Record<string, never>; result: Record<string, number> };
   getAvailableRegions: { params: RegionRectParams; result: [number, number][] };
+  googleSignIn: { params: Record<string, never>; result: { idToken: string; rawNonce: string } };
 };
 
 /** Événements poussés par Kotlin. */

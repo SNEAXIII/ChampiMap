@@ -203,6 +203,7 @@ class MainActivity : ComponentActivity() {
                     .map { (x, y) -> JSONArray().put(x).put(y) },
             )
         }
+        bridge.handle("googleSignIn") { GoogleSignIn.signIn(this) }
         bridge.install()
         onBackPressedDispatcher.addCallback(this, backCallback)
 
