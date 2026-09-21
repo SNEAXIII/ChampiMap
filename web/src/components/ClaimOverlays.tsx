@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
-import { callNative, type Claim } from '../bridge/bridge';
+import { callNative, onNative, type Claim } from '../bridge/bridge';
 import { rectRing, regionCount, regionSquare, regionsInView } from '../claims/regions';
 import { useOnline } from '../net/useOnline';
 
@@ -17,7 +17,7 @@ const EMPTY = { type: 'FeatureCollection', features: [] } as const;
 
 /**
  * Brouillard :
- * - voile gris sur les zones en cours de téléchargement ;
+ * - voile gris sur les cases pas encore complètes des zones en cours de téléchargement ;
  * - contour discret autour des zones complètes ;
  * - sans réseau, voile sur les cases ni en zone ni en cache.
  */
@@ -57,15 +57,60 @@ export function ClaimOverlays({ map, claims }: Props) {
 
   useEffect(() => {
     if (!ready) return;
-    const source = map.getSource(CLAIMS_SOURCE) as GeoJSONSource | undefined;
-    source?.setData({
-      type: 'FeatureCollection',
-      features: claims.map((claim) => ({
-        type: 'Feature',
-        properties: { status: claim.status },
-        geometry: { type: 'Polygon', coordinates: rectRing(claim) },
-      })),
+    let cancelled = false;
+    // Seule la dernière requête lancée repeint (les réponses natives peuvent arriver dans le désordre).
+    let generation = 0;
+    // Voile d'une zone en cours limité aux cases pas encore complètes : il se lève case par case.
+    const incompleteSquares = async (claim: Claim): Promise<number[][][][]> => {
+      let complete = new Set<string>();
+      try {
+        complete = new Set((await callNative('getCompleteRegions', claim)).map(([x, y]) => `${x}:${y}`));
+      } catch (error) {
+        console.warn('getCompleteRegions a échoué, zone entièrement voilée', error);
+      }
+      const squares: number[][][][] = [];
+      for (let x = claim.xMin; x <= claim.xMax; x++) {
+        for (let y = claim.yMin; y <= claim.yMax; y++) if (!complete.has(`${x}:${y}`)) squares.push(regionSquare(x, y));
+      }
+      return squares;
+    };
+    const paint = async () => {
+      const current = ++generation;
+      const features = await Promise.all(
+        claims.map(async (claim) => ({
+          type: 'Feature' as const,
+          properties: { status: claim.status },
+          geometry:
+            claim.status === 'downloading'
+              ? { type: 'MultiPolygon' as const, coordinates: await incompleteSquares(claim) }
+              : { type: 'Polygon' as const, coordinates: rectRing(claim) },
+        })),
+      );
+      if (cancelled || current !== generation) return;
+      (map.getSource(CLAIMS_SOURCE) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
+    };
+    void paint();
+    if (!claims.some((claim) => claim.status === 'downloading')) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    // Pendant un téléchargement : au plus un rafraîchissement toutes les 2 s, le dernier jamais perdu.
+    let lastPaintAt = Date.now();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = onNative('claimProgress', () => {
+      if (timer !== null) return;
+      timer = setTimeout(() => {
+        timer = null;
+        lastPaintAt = Date.now();
+        void paint();
+      }, Math.max(0, 2000 - (Date.now() - lastPaintAt)));
     });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      if (timer !== null) clearTimeout(timer);
+    };
   }, [map, claims, ready]);
 
   useEffect(() => {

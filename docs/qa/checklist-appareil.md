@@ -163,3 +163,4 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] N5 Pendant ce téléchargement, déplacer la carte ailleurs : les tuiles à l'écran continuent de s'afficher sans blocage
 - [ ] N6 Worker MapLibre (les couches GeoJSON ne s'affichaient jamais) : cercle de précision autour du point bleu, contour pointillé vert d'une zone complète, voile gris d'une zone en cours, brouillard hors ligne (mode avion)
 - [ ] N7 Pendant le téléchargement d'une zone, la taille affichée dans la liste augmente (plus de valeur figée jusqu'à la fin)
+- [ ] N8 Télécharger une zone de plusieurs cases, carte ouverte dessus : le voile gris se lève case par case pendant le téléchargement (pas tout d'un coup à la fin)

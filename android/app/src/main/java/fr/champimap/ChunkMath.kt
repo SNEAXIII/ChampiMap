@@ -37,15 +37,32 @@ object ChunkMath {
             (min shl (zoom - REGION_ZOOM))..(((max + 1) shl (zoom - REGION_ZOOM)) - 1)
         }
 
-    /** Tous les chunks z0 → z17 d'un rectangle de régions, zooms faibles d'abord. */
+    /**
+     * Tous les chunks z0 → z17 d'un rectangle de régions : z0 → REGION_ZOOM sur tout le rectangle (peu de
+     * chunks, vue d'ensemble disponible tout de suite), puis région par région avec tout son détail. Les régions
+     * se terminent ainsi une à une (le brouillard d'une zone en cours se lève case par case).
+     */
     fun chunksOfRegions(xMin: Int, yMin: Int, xMax: Int, yMax: Int): Sequence<ChunkId> = sequence {
-        for (z in 0..MAX_DETAIL_ZOOM) {
+        for (z in 0..REGION_ZOOM) {
             val ys = rangeAtZoom(yMin, yMax, z)
             for (x in rangeAtZoom(xMin, xMax, z)) {
                 for (y in ys) yield(ChunkId(z, x, y))
             }
         }
+        for (regionX in xMin..xMax) {
+            for (regionY in yMin..yMax) {
+                for (z in REGION_ZOOM + 1..MAX_DETAIL_ZOOM) {
+                    val ys = rangeAtZoom(regionY, regionY, z)
+                    for (x in rangeAtZoom(regionX, regionX, z)) {
+                        for (y in ys) yield(ChunkId(z, x, y))
+                    }
+                }
+            }
+        }
     }
+
+    /** Chunks de zoom REGION_ZOOM → MAX_DETAIL_ZOOM d'une seule région (1 + 4 + 16 + 64 + 256). */
+    val CHUNKS_PER_REGION: Int = (REGION_ZOOM..MAX_DETAIL_ZOOM).sumOf { 1 shl (2 * (it - REGION_ZOOM)) }
 
     fun countChunksOfRegions(xMin: Int, yMin: Int, xMax: Int, yMax: Int): Long =
         (0..MAX_DETAIL_ZOOM).sumOf { z ->

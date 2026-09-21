@@ -42,6 +42,7 @@ const handlers: Record<string, FakeHandler> = {
   },
   getChunkSizeAverages: () => ({}),
   getAvailableRegions: () => [],
+  getCompleteRegions: () => [],
   startLocation: () => {
     if (watchId !== null || !('geolocation' in navigator)) return null;
     watchId = navigator.geolocation.watchPosition(

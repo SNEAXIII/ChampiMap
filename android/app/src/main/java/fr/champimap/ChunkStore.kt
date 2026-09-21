@@ -210,6 +210,31 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
         return regions
     }
 
+    /**
+     * Régions (z13) du rectangle dont tous les chunks REGION_ZOOM → MAX_DETAIL_ZOOM sont dans la base. Une clause
+     * par zoom sur les colonnes nues (et non sur `x >> shift`) pour que SQLite parcoure l'index (z, x, y) au lieu
+     * de toute la table : appelée toutes les 2 s pendant un téléchargement.
+     */
+    fun completeRegions(xMin: Int, yMin: Int, xMax: Int, yMax: Int): List<Pair<Int, Int>> {
+        val zooms = ChunkMath.REGION_ZOOM..ChunkMath.MAX_DETAIL_ZOOM
+        val where = zooms.joinToString(" OR ") { z ->
+            val xs = ChunkMath.rangeAtZoom(xMin, xMax, z)
+            val ys = ChunkMath.rangeAtZoom(yMin, yMax, z)
+            "(z = $z AND x BETWEEN ${xs.first} AND ${xs.last} AND y BETWEEN ${ys.first} AND ${ys.last})"
+        }
+        val shift = "(z - ${ChunkMath.REGION_ZOOM})"
+        val regions = ArrayList<Pair<Int, Int>>()
+        // Entiers calculés ici, inlinés sans risque d'injection (cf. availableRegions pour le choix de ne pas lier).
+        readableDatabase.rawQuery(
+            "SELECT x >> $shift, y >> $shift FROM chunks WHERE $where " +
+                "GROUP BY x >> $shift, y >> $shift HAVING COUNT(*) = ${ChunkMath.CHUNKS_PER_REGION}",
+            null,
+        ).use { cursor ->
+            while (cursor.moveToNext()) regions += cursor.getInt(0) to cursor.getInt(1)
+        }
+        return regions
+    }
+
     // ---- Claims ----
 
     fun insertClaim(claim: Claim) {
