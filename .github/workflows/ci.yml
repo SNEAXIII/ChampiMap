@@ -100,17 +100,18 @@ jobs:
         with:
           packages: platform-tools
 
-      # La release est signée avec la clé debug (signingConfigs.debug = ~/.android/debug.keystore) :
-      # la même que sur le PC, sinon l'APK ne s'installe pas par-dessus l'app existante et la
-      # connexion Google échoue (client OAuth Android lié au SHA-1 de cette clé).
+      # La release est signée avec la clé debug du PC (signingConfigs.champi, chemin passé par CHAMPI_KEYSTORE) :
+      # sinon l'APK ne s'installe pas par-dessus l'app existante et la connexion Google échoue (client OAuth
+      # Android lié au SHA-1 de cette clé).
       - name: Installer la clé de signature
         id: keystore
         env:
           KS_B64: ${{ secrets.CHAMPI_KEYSTORE_BASE64 }}
         run: |
           if [ -n "$KS_B64" ]; then
-            mkdir -p "$HOME/.android"
-            echo "$KS_B64" | base64 -d > "$HOME/.android/debug.keystore"
+            # tr : tolère des retours à la ligne (CRLF) dans le secret.
+            echo "$KS_B64" | tr -d '\r\n ' | base64 -d > "$RUNNER_TEMP/champi.keystore"
+            echo "CHAMPI_KEYSTORE=$RUNNER_TEMP/champi.keystore" >> "$GITHUB_ENV"
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::Secret CHAMPI_KEYSTORE_BASE64 absent : APK signée avec une clé jetable, non publiée."
@@ -122,6 +123,19 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew lintRelease assembleRelease --no-daemon --stacktrace
+
+      # Garde-fou : une APK publiée avec une autre clé ne s'installerait pas par-dessus l'app et casserait
+      # la connexion Google. SHA-1 attendu = celui du client OAuth Android (docs/supabase-setup.md).
+      - name: Vérifier la clé de signature
+        if: steps.keystore.outputs.present == 'true'
+        run: |
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          SHA1=$("$APKSIGNER" verify --print-certs android/app/build/outputs/apk/release/app-release.apk | grep -i 'SHA-1' | awk '{print $NF}')
+          echo "SHA-1 de l'APK : $SHA1"
+          if [ "$SHA1" != "b16752fea714eb72b88dcb851962b474447b08ce" ]; then
+            echo "::error::APK signée avec une autre clé que celle du PC (SHA-1 $SHA1)"
+            exit 1
+          fi
 
       - name: Publier l'APK (artefact du run)
         uses: actions/upload-artifact@v4

@@ -28,6 +28,18 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        // Clé debug du PC : son SHA-1 est enregistré dans le client OAuth Android de Google (connexion) et
+        // l'app installée en dépend (mise à jour par-dessus). En CI, le keystore décodé du secret est passé par
+        // CHAMPI_KEYSTORE : chemin explicite plutôt que l'emplacement par défaut de la clé debug d'AGP.
+        create("champi") {
+            storeFile = file(System.getenv("CHAMPI_KEYSTORE") ?: "${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         debug {
             // Serveur Vite du PC, exposé sur le téléphone par `adb reverse tcp:5173 tcp:5173`.
@@ -38,7 +50,7 @@ android {
         release {
             isMinifyEnabled = false
             // App perso installée à la main : signée avec la clé debug.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("champi")
             buildConfigField("String", "WEB_URL", "\"https://appassets.androidplatform.net/assets/web/index.html\"")
             buildConfigField("String", "WEB_ORIGIN", "\"https://appassets.androidplatform.net\"")
         }
