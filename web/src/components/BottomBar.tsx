@@ -18,8 +18,8 @@ function BarButton({ icon: Icon, label, active, onClick }: { icon: IconType; lab
       aria-current={active ? 'page' : undefined}
       className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium ${active ? 'bg-emerald-50 text-emerald-800' : 'text-gray-700'}`}
     >
-      {/* Barre d'onglet actif, collée au bord supérieur de la barre. */}
-      {active && <span className="absolute inset-x-6 top-0 h-0.5 rounded-full bg-emerald-700" />}
+      {/* Barre d'onglet actif, sur toute la largeur de l'onglet, par-dessus la bordure de la barre. */}
+      {active && <span className="absolute inset-x-0 -top-px h-0.5 bg-emerald-700" />}
       <Icon size={22} aria-hidden />
       {label}
     </button>
