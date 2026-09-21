@@ -45,14 +45,14 @@ Nouvelles migrations : `npx supabase migration new <nom>` (nom horodaté), puis 
    - **Site URL** : `http://127.0.0.1:5173` ;
    - **Redirect URLs** : ajoute `http://127.0.0.1:5173`.
 
-## 4. Fichiers locaux (jamais committés)
+## 4. Configuration de l'app
 
-- `web/.env.local` :
+- `web/.env.production` (versionné : l'URL et la clé publishable sont publiques, la RLS protège les données) :
   ```
   VITE_SUPABASE_URL=https://<ref-du-projet>.supabase.co
   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_…
   ```
-- `android/local.properties`, ajouter la ligne :
+- `android/local.properties` (ignoré par git), ajouter la ligne :
   ```
   champimap.googleWebClientId=<Client ID Web>.apps.googleusercontent.com
   ```
