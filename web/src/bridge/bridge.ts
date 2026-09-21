@@ -1,6 +1,7 @@
 import { createFakeNative } from './fakeNative';
 
 export type LocationFix = { latitude: number; longitude: number; accuracy: number | null; time: number };
+export type Heading = { heading: number; tilted: boolean; needsCalibration: boolean };
 export type StorageStats = { cacheBytes: number; cacheTargetBytes: number; claimBytes: number };
 export type AppSettings = { prefetchOnMobileData: boolean };
 export type Claim = {
@@ -43,6 +44,7 @@ export type BridgeEvents = {
   locationState: { running: boolean; permissionDenied: boolean };
   claimProgress: ClaimProgress;
   claimsChanged: null;
+  heading: Heading;
 };
 
 type NativePort = {

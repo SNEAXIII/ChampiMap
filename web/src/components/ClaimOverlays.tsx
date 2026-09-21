@@ -79,6 +79,12 @@ export function ClaimOverlays({ map, claims }: Props) {
     // Des rafraîchissements successifs (moveend rapprochés) peuvent répondre dans le désordre :
     // seule la dernière requête lancée a le droit de repeindre le brouillard.
     let generation = 0;
+    // moveend peut être rejoué très vite (la carte suit le cap en Suivi) : sans ce délai, chaque
+    // interruption d'easeTo relancerait un appel natif + un recalcul du brouillard.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    // Dernier rafraîchissement déclenché : au-delà d'1 s sans repeindre, le debounce seul retarderait
+    // indéfiniment le brouillard pendant qu'on marche en Suivi (moveend rejoué toutes les 100–150 ms).
+    let lastRefreshAt = 0;
     const refresh = async () => {
       const current = ++generation;
       const view = regionsInView(map.getBounds());
@@ -104,11 +110,29 @@ export function ClaimOverlays({ map, claims }: Props) {
       }
       fogSource()?.setData({ type: 'Feature', properties: {}, geometry: { type: 'MultiPolygon', coordinates: squares } });
     };
-    void refresh();
-    map.on('moveend', refresh);
+    const triggerRefresh = () => {
+      lastRefreshAt = Date.now();
+      void refresh();
+    };
+    const onMoveEnd = () => {
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+      if (Date.now() - lastRefreshAt >= 1000) {
+        debounceTimer = null;
+        triggerRefresh();
+        return;
+      }
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        triggerRefresh();
+      }, 300);
+    };
+    // Immédiat : premier calcul et bascule en ligne/hors ligne, seuls les moveend rapprochés sont différés.
+    triggerRefresh();
+    map.on('moveend', onMoveEnd);
     return () => {
       cancelled = true;
-      map.off('moveend', refresh);
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+      map.off('moveend', onMoveEnd);
     };
   }, [map, claims, online, ready]);
 

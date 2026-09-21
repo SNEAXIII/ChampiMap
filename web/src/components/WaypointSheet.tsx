@@ -6,10 +6,12 @@ import { deleteWaypoint, renameWaypoint, type Waypoint } from '../waypoints/wayp
 type Props = {
   waypoint: Waypoint;
   distance: number | null;
+  isTarget: boolean;
+  onToggleTarget: () => void;
   onClose: () => void;
 };
 
-export function WaypointSheet({ waypoint, distance, onClose }: Props) {
+export function WaypointSheet({ waypoint, distance, isTarget, onToggleTarget, onClose }: Props) {
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(waypoint.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -56,6 +58,13 @@ export function WaypointSheet({ waypoint, distance, onClose }: Props) {
       ) : (
         <div className="flex flex-col gap-2">
           <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onToggleTarget}
+              className={`flex-1 rounded-lg py-3 font-medium ${isTarget ? 'bg-gray-100' : 'bg-emerald-700 text-white'}`}
+            >
+              {isTarget ? 'Ne plus cibler' : 'Cibler'}
+            </button>
             <button type="button" onClick={() => setRenaming(true)} className="flex-1 rounded-lg bg-gray-100 py-3 font-medium">
               Renommer
             </button>

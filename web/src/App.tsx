@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LngLat, Map as MapLibreMap } from 'maplibre-gl';
 import { MapView } from './components/MapView';
 import { WaypointMarkers } from './components/WaypointMarkers';
@@ -15,12 +15,18 @@ import { GpsBadge } from './components/GpsBadge';
 import { PositionLayer } from './components/PositionLayer';
 import { PositionSheet } from './components/PositionSheet';
 import { LocateButton, type FollowMode } from './components/LocateButton';
+import { NorthButton } from './components/NorthButton';
+import { CompassWarnings } from './components/CompassWarnings';
+import { TargetArrow } from './components/TargetArrow';
+import { TargetBanner } from './components/TargetBanner';
 import { useLongPressViseur } from './map/useLongPressViseur';
+import { useTarget } from './target/useTarget';
 import { useWaypoints } from './waypoints/useWaypoints';
 import { useClaims } from './claims/useClaims';
 import { rectBounds } from './claims/regions';
 import { useLocation } from './location/useLocation';
 import { useStale } from './location/useStale';
+import { useHeading } from './location/useHeading';
 import { createWaypoint, defaultWaypointName, type Waypoint } from './waypoints/waypointStore';
 import { callNative, onNative } from './bridge/bridge';
 import { distanceMeters, type LatLon } from './geo/geo';
@@ -46,6 +52,14 @@ export function App() {
   const { claims, progress } = useClaims();
   const fix = location.fix;
   const stale = useStale(fix, location.running);
+  const heading = useHeading();
+  const [targetId, setTargetId] = useTarget();
+  const target = waypoints.find((waypoint) => waypoint.id === targetId) ?? null;
+
+  // Cible supprimée (ici ou via la sync) : on arrête de la cibler.
+  useEffect(() => {
+    if (targetId !== null && waypoints.length > 0 && target === null) setTargetId(null);
+  }, [targetId, target, waypoints.length, setTargetId]);
 
   const openCreateSheet = useCallback((lngLat: LngLat) => {
     setSheet({ kind: 'create', position: { latitude: lngLat.lat, longitude: lngLat.lng }, defaultName: defaultWaypointName() });
@@ -84,22 +98,67 @@ export function App() {
     };
   }, [map]);
 
-  // Suivi : la carte suit chaque nouvelle position. Premier tap sans position : centrer dès qu'elle arrive.
+  // Geste utilisateur (pincer/tourner/incliner) en cours : le suivi ne doit pas l'interrompre en repoussant
+  // la caméra sous lui (un pincer sans assez de déplacement pour déclencher dragstart resterait sinon coupé
+  // net par le prochain easeTo du Suivi).
+  const userGestureRef = useRef(false);
   useEffect(() => {
-    if (!map || !fix) return;
-    if (centerOnNextFix) {
-      setCenterOnNextFix(false);
-      setFollowMode('centered');
-      map.easeTo({ center: [fix.longitude, fix.latitude], bearing: 0 });
-    } else if (followMode === 'follow') {
-      map.easeTo({ center: [fix.longitude, fix.latitude], duration: 500 });
-    }
-  }, [map, fix, followMode, centerOnNextFix]);
+    if (!map) return;
+    const onGestureStart = (event: { originalEvent?: unknown }) => {
+      if (event.originalEvent) userGestureRef.current = true;
+    };
+    const onGestureEnd = (event: { originalEvent?: unknown }) => {
+      if (event.originalEvent) userGestureRef.current = false;
+    };
+    map.on('zoomstart', onGestureStart);
+    map.on('rotatestart', onGestureStart);
+    map.on('pitchstart', onGestureStart);
+    map.on('zoomend', onGestureEnd);
+    map.on('rotateend', onGestureEnd);
+    map.on('pitchend', onGestureEnd);
+    return () => {
+      map.off('zoomstart', onGestureStart);
+      map.off('rotatestart', onGestureStart);
+      map.off('pitchstart', onGestureStart);
+      map.off('zoomend', onGestureEnd);
+      map.off('rotateend', onGestureEnd);
+      map.off('pitchend', onGestureEnd);
+    };
+  }, [map]);
 
-  // Écran allumé uniquement en Suivi.
+  // Premier tap sans position : centrer (nord en haut) dès qu'elle arrive.
   useEffect(() => {
-    callNative('setKeepScreenOn', { on: followMode === 'follow' }).catch(console.warn);
-  }, [followMode]);
+    if (!map || !fix || !centerOnNextFix) return;
+    setCenterOnNextFix(false);
+    setFollowMode('centered');
+    map.easeTo({ center: [fix.longitude, fix.latitude], bearing: 0 });
+  }, [map, fix, centerOnNextFix]);
+
+  // Suivi : la carte suit la position et tourne selon le cap.
+  const headingDegrees = heading?.heading ?? null;
+  useEffect(() => {
+    // Un geste utilisateur en cours (pincer, tourner...) ne doit pas être coupé par ce recentrage.
+    // Le viseur (appui long) désactive dragPan : sans cette garde, la carte tournerait encore sous
+    // un doigt immobile et le point créé au relâchement ne correspondrait plus au réticule.
+    // Idem derrière un panneau plein écran (rien à voir) : autant ne pas animer la caméra pour rien.
+    if (!map || !fix || followMode !== 'follow' || userGestureRef.current || viseur !== null || panel !== null) return;
+    map.easeTo({
+      center: [fix.longitude, fix.latitude],
+      // Cap dégénéré près de la verticale (téléphone redressé) : garder la rotation actuelle plutôt
+      // que suivre un azimut erratique.
+      bearing: heading && !heading.tilted ? heading.heading : map.getBearing(),
+      // Rejoué jusqu'à 10×/s (cap) : un easing par défaut redémarré à chaque appel est saccadé, linéaire
+      // et court enchaîne proprement.
+      duration: 150,
+      easing: (t) => t,
+    });
+  }, [map, fix, followMode, heading, viseur, panel]);
+
+  // Écran allumé uniquement en Suivi ou avec une Cible active.
+  const keepScreenOn = followMode === 'follow' || target !== null;
+  useEffect(() => {
+    callNative('setKeepScreenOn', { on: keepScreenOn }).catch(console.warn);
+  }, [keepScreenOn]);
 
   // Si le fix disparaît (resync natif) pendant que la feuille « Ma position » est ouverte, la fermer.
   useEffect(() => {
@@ -121,7 +180,9 @@ export function App() {
       setFollowMode('follow');
       map.easeTo({ center });
     } else {
+      // Centré = nord en haut.
       setFollowMode('centered');
+      map.easeTo({ center, bearing: 0 });
     }
   };
 
@@ -148,9 +209,13 @@ export function App() {
         <MapView onMapReady={setMap} />
         <GpsBadge location={location} stale={stale} />
         {map && <ClaimOverlays map={map} claims={claims} />}
-        {map && <PositionLayer map={map} fix={fix} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
+        {map && <PositionLayer map={map} fix={fix} heading={headingDegrees} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
         {map && <WaypointMarkers map={map} waypoints={waypoints} onSelect={(id) => setSheet({ kind: 'waypoint', id })} />}
         {viseur && <Viseur viseur={viseur} />}
+        {map && <NorthButton map={map} hidden={followMode === 'follow'} />}
+        <CompassWarnings heading={heading} active={keepScreenOn} />
+        {map && fix && target && <TargetArrow map={map} fix={fix} target={target} stale={stale} />}
+        {target && <TargetBanner target={target} distance={fix ? distanceMeters(fix, target) : null} onStop={() => setTargetId(null)} />}
         <LocateButton mode={followMode} onPress={pressLocate} />
         {sheet?.kind === 'create' && (
           <CreateWaypointSheet
@@ -176,6 +241,11 @@ export function App() {
             key={selected.id}
             waypoint={selected}
             distance={fix ? distanceMeters(fix, selected) : null}
+            isTarget={targetId === selected.id}
+            onToggleTarget={() => {
+              setTargetId(targetId === selected.id ? null : selected.id);
+              setSheet(null);
+            }}
             onClose={() => setSheet(null)}
           />
         )}
@@ -191,6 +261,10 @@ export function App() {
             onClose={() => setPanel(null)}
             onNewClaim={() => {
               setPanel(null);
+              // cooperativeGestures : un seul doigt ne déclenche pas dragstart, donc rien n'interromprait
+              // le Suivi pendant le tracé du rectangle — la carte tournerait/paniquerait sous la sélection.
+              setFollowMode('free');
+              map?.easeTo({ bearing: 0 });
               setSelecting(true);
             }}
             onShow={(claim) => {

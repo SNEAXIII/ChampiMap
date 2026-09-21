@@ -123,3 +123,34 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] J6b Après J6, renommer « Serveur » en « Serveur 2 » sur le téléphone : il passe à ☁️, et Supabase (Table Editor) affiche « Serveur 2 »
 - [ ] J7 Se déconnecter (en ligne) : la liste est vide. Se reconnecter : « Serveur » revient, et `Sync B` reste supprimé (non affiché)
 - [ ] J8 Relancer l'app : aucune erreur de sync affichée, les waypoints sont toujours là
+
+## Phase 7 — boussole et cible
+
+### Task 1 — cap et Suivi
+- [ ] K1 Téléphone posé à plat, haut du téléphone vers le nord (boussole ou repère connu) : le cône bleu du marqueur pointe vers le haut de la carte (nord en haut)
+- [ ] K2 Se tourner de 90° vers l'est : le cône pointe vers la droite de la carte
+- [ ] K3 Tap ◎ deux fois (Suivi ◉) : la carte tourne, le haut de l'écran correspond à la direction du téléphone ; se tourner lentement : la carte suit sans saccades gênantes (signaler sinon)
+- [ ] K3b En Suivi, pincer pour zoomer : le geste va à son terme sans être coupé net par la rotation de la carte
+- [ ] K4 Redresser le téléphone à la verticale : le bandeau « Tiens le téléphone à plat » apparaît, et la carte arrête de tourner (garde sa dernière orientation) ; le reposer à plat : le bandeau disparaît et la carte reprend le cap
+- [ ] K5 Glisser la carte au doigt (sortie du Suivi) : la carte garde sa rotation et le bouton nord ▲ apparaît ; taper dessus : nord en haut, le bouton disparaît
+- [ ] K6 Tap ◎ (Centré) : nord en haut
+- [ ] K7 Si « Boussole imprécise » s'affiche à un moment, faire un 8 avec le téléphone : le bandeau disparaît
+
+### Task 2 — cible
+- [ ] L1 Créer (ou utiliser) un waypoint à 100–500 m, dans une direction connue. Tap dessus → [Cibler] : la feuille se ferme, le bandeau « 🎯 Nom · N m » apparaît en bas à gauche, et une flèche verte orbite autour du point bleu vers le waypoint
+- [ ] L2 Dézoomer/déplacer la carte pour que le waypoint sorte de l'écran : la flèche pointe toujours vers lui
+- [ ] L3 Suivi ◉ : la carte tourne avec le téléphone, et la flèche reste orientée vers le waypoint réel (se tourner dans la direction indiquée pour confirmer)
+- [ ] L4 Écran : `timeout 30 adb shell dumpsys window | grep -i KEEP_SCREEN_ON` actif, même après être sorti du Suivi (glisser la carte), tant que la cible est active
+- [ ] L5 Créer un waypoint « Ici » sur sa propre position (tap point bleu → Créer), le cibler : bandeau vert « ✅ Arrivé · Ici » (distance < 10 m). La cible n'est pas arrêtée automatiquement
+- [ ] L6 ✕ sur le bandeau : bandeau et flèche disparaissent. Hors Suivi, le flag KEEP_SCREEN_ON disparaît
+- [ ] L7 Cibler un waypoint, relancer l'app : la cible est toujours active. Supprimer ce waypoint : la cible disparaît
+- [ ] L8 Cible active : le « ⓘ » d'attribution IGN (bas à gauche) reste visible sous le bandeau et reste tapable
+
+### Revue finale
+- [ ] M1 Suivi ◉ actif : appui long sur la carte (viseur) en gardant le doigt immobile : la carte reste fixe pendant tout l'appui, et le point créé au relâchement correspond bien au réticule affiché
+- [ ] M2 En Suivi, ouvrir « Zones hors ligne » → [+ Nouvelle zone hors ligne] : le Suivi est quitté (bouton ◎), la grille de sélection est nord en haut et ne bouge pas pendant le tracé du rectangle
+- [ ] M3 Hors ligne + Suivi en marchant (ou en simulant un déplacement) : le brouillard se met à jour au fil de la marche, pas seulement à l'arrêt
+- [ ] M4 Feuille d'un waypoint (WaypointSheet) à 360 dp de large : les 3 boutons sont lisibles, pas de texte coupé
+- [ ] M5 Provoquer « 🧭 Boussole imprécise : fais un 8 avec le téléphone » : le message est entièrement visible (pas de troncature) même à 360 dp
+- [ ] M6 Téléphone posé à plat et immobile, démarrage à froid de l'app (force-stop puis relance) : le cône de cap apparaît sans avoir à bouger le téléphone
+- [ ] M7 Cibler un waypoint, se déconnecter puis se reconnecter avec le même compte : la cible reste active (comportement attendu)
