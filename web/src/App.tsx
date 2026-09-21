@@ -276,6 +276,8 @@ export function App() {
         )}
       </div>
       <BottomBar
+        // Le mode sélection d'une zone est lancé depuis « Zones hors ligne » : l'onglet reste marqué.
+        active={selecting ? 'claims' : panel}
         onOpenWaypoints={openWaypointList}
         onOpenClaims={() => {
           setSheet(null);
