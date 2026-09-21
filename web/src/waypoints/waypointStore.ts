@@ -30,6 +30,9 @@ function replaceAll(next: Waypoint[]): void {
 export async function loadWaypoints(): Promise<void> {
   const db = await dbPromise;
   replaceAll(await db.getAll('waypoints'));
+  // Tant que la synchro n'a pas tourné, l'appareil détient la seule copie des waypoints :
+  // on demande au navigateur de ne pas l'effacer sous pression de stockage.
+  void navigator.storage?.persist?.();
 }
 
 export function subscribeWaypoints(listener: () => void): () => void {
@@ -42,6 +45,8 @@ export function subscribeWaypoints(listener: () => void): () => void {
 export const getVisibleWaypoints = (): Waypoint[] => visible;
 export const getAllWaypoints = (): Waypoint[] => all;
 
+// Invariant : lire `getAllWaypoints()` puis appeler `saveWaypoints` sans `await` entre les deux,
+// sinon une écriture concurrente (une autre sauvegarde, ou la sync) peut être écrasée.
 export async function saveWaypoints(changed: Waypoint[]): Promise<void> {
   const db = await dbPromise;
   const tx = db.transaction('waypoints', 'readwrite');
@@ -79,4 +84,11 @@ export const deleteWaypoint = (id: string) => updateWaypoint(id, { deletedAt: Da
 export function defaultWaypointName(date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `Waypoint ${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** Vide les waypoints locaux (déconnexion ou changement de compte, après la dernière sync). */
+export async function clearWaypoints(): Promise<void> {
+  const db = await dbPromise;
+  await db.clear('waypoints');
+  replaceAll([]);
 }

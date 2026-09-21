@@ -3,12 +3,21 @@ import { signInWithGoogle, signOut } from '../auth/auth';
 import { useSession } from '../auth/useSession';
 import { supabase } from '../lib/supabase';
 import { useOnline } from '../net/useOnline';
+import { syncNow } from '../sync/sync';
+import { useSyncState } from '../sync/useSyncState';
+import { useWaypoints } from '../waypoints/useWaypoints';
+import { getAllWaypoints } from '../waypoints/waypointStore';
 
 export function AccountSection() {
   const session = useSession();
   const online = useOnline();
+  const sync = useSyncState();
+  // Abonnement pour se re-rendre à chaque modification ; le compte inclut les suppressions pas encore envoyées.
+  useWaypoints();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const localCount = getAllWaypoints().filter((waypoint) => waypoint.dirty).length;
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -43,13 +52,48 @@ export function AccountSection() {
         </>
       ) : (
         <>
-          <p className="mb-2 text-sm">Connecté : {session.user.email}</p>
-          <button type="button" disabled={busy} onClick={() => run(signOut)} className="w-full rounded-lg bg-gray-100 py-3 font-medium">
-            Se déconnecter
-          </button>
+          <p className="text-sm">Connecté : {session.user.email}</p>
+          <p className="text-sm text-gray-600">
+            {localCount === 0 ? '☁️ Tous les waypoints sont sauvegardés' : `📱 ${localCount} waypoint${localCount > 1 ? 's' : ''} sur l'appareil`}
+          </p>
+          <p className="mb-2 text-xs text-gray-500">
+            {sync.syncing
+              ? 'Synchronisation…'
+              : sync.lastSyncedAt
+                ? `Dernière synchronisation : ${new Date(sync.lastSyncedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+                : online
+                  ? 'Pas encore synchronisé'
+                  : 'Hors ligne : synchronisation au retour du réseau'}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={busy || sync.syncing || !online}
+              onClick={() => run(syncNow)}
+              className="flex-1 rounded-lg bg-gray-100 py-3 font-medium disabled:opacity-40"
+            >
+              Synchroniser
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                if (!confirmSignOut) {
+                  setConfirmSignOut(true);
+                  return;
+                }
+                setConfirmSignOut(false);
+                void run(signOut);
+              }}
+              className={`flex-1 rounded-lg py-3 font-medium ${confirmSignOut ? 'bg-red-600 text-white' : 'bg-gray-100'}`}
+            >
+              {confirmSignOut ? 'Confirmer' : 'Se déconnecter'}
+            </button>
+          </div>
+          {confirmSignOut && <p className="mt-2 text-xs text-gray-500">Les waypoints seront retirés de ce téléphone après une dernière sauvegarde.</p>}
         </>
       )}
-      {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
+      {(error ?? sync.lastError) && <p className="mt-2 text-sm text-red-700">{error ?? sync.lastError}</p>}
     </section>
   );
 }
