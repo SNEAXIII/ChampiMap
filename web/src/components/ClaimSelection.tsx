@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import { LuTriangleAlert } from 'react-icons/lu';
 import { callNative, isAndroid, type StorageStats } from '../bridge/bridge';
 import { formatBytes } from '../format/formatBytes';
 import {
@@ -240,8 +241,9 @@ export function ClaimSelection({ map, onDone }: Props) {
                   : 'Trace un rectangle à la souris. Molette pour zoomer.'}
           </p>
           {rect && projectedTotal > GLOBAL_WARNING_BYTES && (
-            <p className="mt-2 rounded-lg bg-amber-100 p-2 text-sm font-medium text-amber-900">
-              ⚠️ L'app occupera ≈ {formatBytes(projectedTotal)} (plus de 1 Go). Les cartes vues récemment seront réduites d'autant.
+            <p className="mt-2 flex gap-2 rounded-lg bg-amber-100 p-2 text-sm font-medium text-amber-900">
+              <LuTriangleAlert size={18} className="mt-0.5 shrink-0" aria-hidden />
+              L'app occupera ≈ {formatBytes(projectedTotal)} (plus de 1 Go). Les cartes vues récemment seront réduites d'autant.
             </p>
           )}
           <div className="mt-3 flex gap-2">

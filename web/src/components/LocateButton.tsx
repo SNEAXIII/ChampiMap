@@ -1,3 +1,5 @@
+import { LuLocate, LuLocateFixed, LuNavigation } from 'react-icons/lu';
+
 export type FollowMode = 'free' | 'centered' | 'follow';
 
 type Props = {
@@ -17,11 +19,17 @@ export function LocateButton({ mode, onPress }: Props) {
       type="button"
       onClick={onPress}
       aria-label={LABELS[mode]}
-      className={`absolute right-3 bottom-4 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-white text-3xl shadow-lg ${
+      className={`absolute right-3 bottom-4 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-lg ${
         mode === 'free' ? 'text-gray-600' : 'text-blue-600'
       }`}
     >
-      {mode === 'follow' ? '◉' : '◎'}
+      {mode === 'follow' ? (
+        <LuNavigation size={28} fill="currentColor" aria-hidden />
+      ) : mode === 'centered' ? (
+        <LuLocateFixed size={30} aria-hidden />
+      ) : (
+        <LuLocate size={30} aria-hidden />
+      )}
     </button>
   );
 }

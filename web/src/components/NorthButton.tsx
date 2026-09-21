@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Map as MapLibreMap } from 'maplibre-gl';
+import { LuNavigation2 } from 'react-icons/lu';
 
 type Props = {
   map: MapLibreMap;
@@ -26,8 +27,8 @@ export function NorthButton({ map, hidden }: Props) {
       aria-label="Remettre le nord en haut"
       className="absolute right-3 bottom-20 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg"
     >
-      <span className="block text-lg leading-none font-bold text-red-600" style={{ transform: `rotate(${-bearing}deg)` }}>
-        ▲
+      <span className="block text-red-600" style={{ transform: `rotate(${-bearing}deg)` }}>
+        <LuNavigation2 size={22} fill="currentColor" aria-hidden />
       </span>
     </button>
   );

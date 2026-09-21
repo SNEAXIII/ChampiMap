@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LuCloud, LuSmartphone } from 'react-icons/lu';
 import { signInWithGoogle, signOut } from '../auth/auth';
 import { useSession } from '../auth/useSession';
 import { supabase } from '../lib/supabase';
@@ -57,12 +58,17 @@ export function AccountSection() {
       ) : (
         <>
           <p className="text-sm">Connecté : {session.user.email}</p>
-          <p className="text-sm text-gray-600">
+          <p className="flex items-center gap-1.5 text-sm text-gray-600">
+            {visibleDirtyCount === 0 && dirtyDeletionsCount === 0 ? (
+              <LuCloud size={16} className="shrink-0" aria-hidden />
+            ) : (
+              <LuSmartphone size={16} className="shrink-0" aria-hidden />
+            )}
             {visibleDirtyCount === 0 && dirtyDeletionsCount === 0
-              ? '☁️ Tous les points sont sauvegardés'
+              ? 'Tous les points sont sauvegardés'
               : visibleDirtyCount > 0
-                ? `📱 ${visibleDirtyCount} waypoint${visibleDirtyCount > 1 ? 's' : ''} sur l'appareil`
-                : `📱 ${dirtyDeletionsCount} suppression${dirtyDeletionsCount > 1 ? 's' : ''} pas encore sauvegardée${dirtyDeletionsCount > 1 ? 's' : ''}`}
+                ? `${visibleDirtyCount} point${visibleDirtyCount > 1 ? 's' : ''} sur l'appareil`
+                : `${dirtyDeletionsCount} suppression${dirtyDeletionsCount > 1 ? 's' : ''} pas encore sauvegardée${dirtyDeletionsCount > 1 ? 's' : ''}`}
           </p>
           <p className="mb-2 text-xs text-gray-500">
             {sync.syncing

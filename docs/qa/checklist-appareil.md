@@ -165,3 +165,12 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] N7 Pendant le téléchargement d'une zone, la taille affichée dans la liste augmente (plus de valeur figée jusqu'à la fin)
 - [ ] N8 Télécharger une zone de plusieurs cases, carte ouverte dessus : le voile gris se lève case par case pendant le téléchargement (pas tout d'un coup à la fin)
 - [ ] N9 Zone débordant hors couverture IGN (frontière suisse ou côte) : le téléchargement se termine sans rester figé à 100 % ; si des images échouent vraiment, la liste affiche « Nouvel essai dans 1 min · N images en échec » (et la notification aussi)
+
+## Icônes des points et voiture (spec 2026-09-21-icones-points)
+Prérequis : `npx supabase db push` (colonne `icon`) fait avant l'installation.
+- [ ] O1 Appui long → « Nouveau point » : grille d'icônes, choisir « Cèpe » → marqueur goutte marron avec l'icône blanche
+- [ ] O2 Tap sur un point → « Modifier » : changer nom et icône → marqueur et liste mis à jour
+- [ ] O3 Tap sur le point bleu → « Garé ici » deux fois à quelques minutes d'écart : deux points voiture, seul le plus récent est en surbrillance (goutte plus grande avec halo, nom sur fond bleu), badge « Dernière » dans la liste et « Dernière voiture » dans sa feuille
+- [ ] O4 Supprimer la dernière voiture : la précédente passe en surbrillance
+- [ ] O5 Sync : icône changée, attendre ☁ (icône nuage dans la liste) ; se déconnecter / reconnecter : les icônes reviennent à l'identique
+- [ ] O6 Plus aucun emoji : barre du bas, bouton de localisation (3 états), bouton nord, badge GPS, bandeau de cible, alertes boussole, croix de fermeture

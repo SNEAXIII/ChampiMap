@@ -1,10 +1,12 @@
 import { openDB } from 'idb';
+import { CAR_ICON_ID, DEFAULT_ICON_ID } from './icons';
 
 export type Waypoint = {
   id: string;
   name: string;
   latitude: number;
   longitude: number;
+  icon: string; // id du catalogue (icons.ts)
   createdAt: number; // ms depuis epoch
   updatedAt: number;
   deletedAt: number | null; // suppression logique : la sync doit propager la suppression
@@ -29,7 +31,8 @@ function replaceAll(next: Waypoint[]): void {
 
 export async function loadWaypoints(): Promise<void> {
   const db = await dbPromise;
-  replaceAll(await db.getAll('waypoints'));
+  // Points créés avant l'ajout des icônes : pas de champ `icon` en base.
+  replaceAll((await db.getAll('waypoints')).map((waypoint) => ({ ...waypoint, icon: waypoint.icon ?? DEFAULT_ICON_ID })));
   // Tant que la synchro n'a pas tourné, l'appareil détient la seule copie des waypoints :
   // on demande au navigateur de ne pas l'effacer sous pression de stockage.
   void navigator.storage?.persist?.();
@@ -56,13 +59,14 @@ export async function saveWaypoints(changed: Waypoint[]): Promise<void> {
   replaceAll([...byId.values()]);
 }
 
-export async function createWaypoint(name: string, latitude: number, longitude: number): Promise<Waypoint> {
+export async function createWaypoint(name: string, latitude: number, longitude: number, icon = DEFAULT_ICON_ID): Promise<Waypoint> {
   const now = Date.now();
   const waypoint: Waypoint = {
     id: crypto.randomUUID(),
     name,
     latitude,
     longitude,
+    icon,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -72,7 +76,7 @@ export async function createWaypoint(name: string, latitude: number, longitude: 
   return waypoint;
 }
 
-async function updateWaypoint(id: string, change: Partial<Pick<Waypoint, 'name' | 'deletedAt'>>): Promise<void> {
+async function updateWaypoint(id: string, change: Partial<Pick<Waypoint, 'name' | 'icon' | 'deletedAt'>>): Promise<void> {
   const current = all.find((waypoint) => waypoint.id === id);
   if (!current) return;
   // Toujours strictement croissant par rapport à la version connue : si l'horloge du téléphone est en retard
@@ -82,12 +86,21 @@ async function updateWaypoint(id: string, change: Partial<Pick<Waypoint, 'name' 
   await saveWaypoints([{ ...current, ...change, updatedAt, dirty: true }]);
 }
 
-export const renameWaypoint = (id: string, name: string) => updateWaypoint(id, { name });
+export const editWaypoint = (id: string, name: string, icon: string) => updateWaypoint(id, { name, icon });
 export const deleteWaypoint = (id: string) => updateWaypoint(id, { deletedAt: Date.now() });
 
-export function defaultWaypointName(date = new Date()): string {
+/** Id du point voiture le plus récent (mis en surbrillance), parmi les points visibles. */
+export function latestCarId(waypoints: Waypoint[]): string | null {
+  let latest: Waypoint | null = null;
+  for (const waypoint of waypoints) {
+    if (waypoint.icon === CAR_ICON_ID && (!latest || waypoint.createdAt > latest.createdAt)) latest = waypoint;
+  }
+  return latest?.id ?? null;
+}
+
+export function defaultWaypointName(date = new Date(), prefix = 'Point'): string {
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `Waypoint ${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${prefix} ${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 /** Vide les waypoints locaux (déconnexion ou changement de compte, après la dernière sync). */

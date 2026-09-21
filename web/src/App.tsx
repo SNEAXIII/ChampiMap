@@ -27,7 +27,8 @@ import { rectBounds } from './claims/regions';
 import { useLocation } from './location/useLocation';
 import { useStale } from './location/useStale';
 import { useHeading } from './location/useHeading';
-import { createWaypoint, defaultWaypointName, type Waypoint } from './waypoints/waypointStore';
+import { createWaypoint, defaultWaypointName, latestCarId, type Waypoint } from './waypoints/waypointStore';
+import { CAR_ICON_ID } from './waypoints/icons';
 import { callNative, onNative } from './bridge/bridge';
 import { distanceMeters, type LatLon } from './geo/geo';
 
@@ -223,8 +224,8 @@ export function App() {
             position={sheet.position}
             defaultName={sheet.defaultName}
             onCancel={() => setSheet(null)}
-            onCreate={async (name) => {
-              await createWaypoint(name, sheet.position.latitude, sheet.position.longitude);
+            onCreate={async (name, icon) => {
+              await createWaypoint(name, sheet.position.latitude, sheet.position.longitude, icon);
               setSheet(null);
             }}
           />
@@ -234,6 +235,10 @@ export function App() {
             fix={fix}
             onClose={() => setSheet(null)}
             onCreateWaypoint={() => setSheet({ kind: 'create', position: fix, defaultName: 'Ma position' })}
+            onParkHere={async () => {
+              await createWaypoint(defaultWaypointName(new Date(), 'Voiture'), fix.latitude, fix.longitude, CAR_ICON_ID);
+              setSheet(null);
+            }}
           />
         )}
         {selected && (
@@ -242,6 +247,7 @@ export function App() {
             waypoint={selected}
             distance={fix ? distanceMeters(fix, selected) : null}
             isTarget={targetId === selected.id}
+            isLatestCar={latestCarId(waypoints) === selected.id}
             onToggleTarget={() => {
               setTargetId(targetId === selected.id ? null : selected.id);
               setSheet(null);

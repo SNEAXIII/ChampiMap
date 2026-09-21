@@ -9,6 +9,7 @@ type Row = {
   name: string;
   latitude: number;
   longitude: number;
+  icon: string;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -63,6 +64,7 @@ const toRow = (waypoint: Waypoint, userId: string): Omit<Row, 'synced_at'> => ({
   name: waypoint.name,
   latitude: waypoint.latitude,
   longitude: waypoint.longitude,
+  icon: waypoint.icon,
   created_at: new Date(waypoint.createdAt).toISOString(),
   updated_at: new Date(waypoint.updatedAt).toISOString(),
   deleted_at: waypoint.deletedAt === null ? null : new Date(waypoint.deletedAt).toISOString(),
@@ -73,6 +75,7 @@ const fromRow = (row: Row): Waypoint => ({
   name: row.name,
   latitude: row.latitude,
   longitude: row.longitude,
+  icon: row.icon,
   createdAt: Date.parse(row.created_at),
   updatedAt: Date.parse(row.updated_at),
   deletedAt: row.deleted_at === null ? null : Date.parse(row.deleted_at),

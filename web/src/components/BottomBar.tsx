@@ -1,3 +1,6 @@
+import type { IconType } from 'react-icons';
+import { LuMap, LuMapPin, LuSettings } from 'react-icons/lu';
+
 export type BottomBarTab = 'waypoints' | 'claims' | 'settings';
 
 type Props = {
@@ -7,7 +10,7 @@ type Props = {
   onOpenSettings: () => void;
 };
 
-function BarButton({ icon, label, active, onClick }: { icon: string; label: string; active: boolean; onClick: () => void }) {
+function BarButton({ icon: Icon, label, active, onClick }: { icon: IconType; label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -17,7 +20,7 @@ function BarButton({ icon, label, active, onClick }: { icon: string; label: stri
     >
       {/* Barre d'onglet actif, collée au bord supérieur de la barre. */}
       {active && <span className="absolute inset-x-6 top-0 h-0.5 rounded-full bg-emerald-700" />}
-      <span className="text-xl leading-none">{icon}</span>
+      <Icon size={22} aria-hidden />
       {label}
     </button>
   );
@@ -26,9 +29,9 @@ function BarButton({ icon, label, active, onClick }: { icon: string; label: stri
 export function BottomBar({ active, onOpenWaypoints, onOpenClaims, onOpenSettings }: Props) {
   return (
     <nav className="flex border-t border-gray-200 bg-white">
-      <BarButton icon="📍" label="Points" active={active === 'waypoints'} onClick={onOpenWaypoints} />
-      <BarButton icon="🗺️" label="Zones hors ligne" active={active === 'claims'} onClick={onOpenClaims} />
-      <BarButton icon="⚙️" label="Paramètres" active={active === 'settings'} onClick={onOpenSettings} />
+      <BarButton icon={LuMapPin} label="Points" active={active === 'waypoints'} onClick={onOpenWaypoints} />
+      <BarButton icon={LuMap} label="Zones hors ligne" active={active === 'claims'} onClick={onOpenClaims} />
+      <BarButton icon={LuSettings} label="Paramètres" active={active === 'settings'} onClick={onOpenSettings} />
     </nav>
   );
 }

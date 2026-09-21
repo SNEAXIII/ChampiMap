@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LuX } from 'react-icons/lu';
 import { callNative, type Claim, type ClaimProgress } from '../bridge/bridge';
 import { formatBytes } from '../format/formatBytes';
 
@@ -121,8 +122,8 @@ export function ClaimsPanel({ claims, progress, onNewClaim, onShow, onClose }: P
     <section className="absolute inset-0 z-30 flex flex-col bg-white">
       <header className="flex items-center justify-between border-b border-gray-200 p-3">
         <h2 className="text-lg font-semibold">Zones hors ligne</h2>
-        <button type="button" onClick={onClose} aria-label="Fermer" className="px-3 py-2 text-xl text-gray-500">
-          ✕
+        <button type="button" onClick={onClose} aria-label="Fermer" className="px-3 py-2 text-gray-500">
+          <LuX size={24} aria-hidden />
         </button>
       </header>
       <div className="p-3">

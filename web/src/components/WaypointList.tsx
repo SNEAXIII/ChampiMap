@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { distanceMeters, formatDistance, type LatLon } from '../geo/geo';
-import type { Waypoint } from '../waypoints/waypointStore';
+import { LuCloud, LuSmartphone, LuX } from 'react-icons/lu';
+import { latestCarId, type Waypoint } from '../waypoints/waypointStore';
+import { WaypointGlyph } from './WaypointGlyph';
 
 type Props = {
   waypoints: Waypoint[];
@@ -13,6 +15,7 @@ const normalize = (text: string) => text.normalize('NFD').replace(/\p{Diacritic}
 
 export function WaypointList({ waypoints, reference, onPick, onClose }: Props) {
   const [query, setQuery] = useState('');
+  const carId = latestCarId(waypoints);
 
   const rows = useMemo(() => {
     const needle = normalize(query.trim());
@@ -33,8 +36,8 @@ export function WaypointList({ waypoints, reference, onPick, onClose }: Props) {
           onChange={(event) => setQuery(event.target.value)}
           className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-base"
         />
-        <button type="button" onClick={onClose} aria-label="Fermer" className="px-3 py-2 text-xl text-gray-500">
-          ✕
+        <button type="button" onClick={onClose} aria-label="Fermer" className="px-3 py-2 text-gray-500">
+          <LuX size={24} aria-hidden />
         </button>
       </header>
       {rows.length === 0 ? (
@@ -50,9 +53,13 @@ export function WaypointList({ waypoints, reference, onPick, onClose }: Props) {
                 onClick={() => onPick(waypoint)}
                 className="flex w-full items-center gap-3 border-b border-gray-100 px-4 py-3 text-left"
               >
+                <WaypointGlyph icon={waypoint.icon} />
                 <span className="min-w-0 flex-1 truncate font-medium">{waypoint.name}</span>
+                {waypoint.id === carId && <span className="rounded bg-blue-700 px-1.5 text-xs font-semibold text-white">Dernière</span>}
                 <span className="text-sm text-gray-500">{formatDistance(distance)}</span>
-                <span aria-label={waypoint.dirty ? "Sur l'appareil" : 'Sauvegardé'}>{waypoint.dirty ? '📱' : '☁️'}</span>
+                <span role="img" aria-label={waypoint.dirty ? "Sur l'appareil" : 'Sauvegardé'} className="text-gray-400">
+                  {waypoint.dirty ? <LuSmartphone size={18} /> : <LuCloud size={18} />}
+                </span>
               </button>
             </li>
           ))}

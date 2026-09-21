@@ -1,28 +1,39 @@
 import { useState } from 'react';
 import { BottomSheet } from './BottomSheet';
 import { formatCoords, formatDistance } from '../geo/geo';
-import { deleteWaypoint, renameWaypoint, type Waypoint } from '../waypoints/waypointStore';
+import { deleteWaypoint, editWaypoint, type Waypoint } from '../waypoints/waypointStore';
+import { IconPicker } from './IconPicker';
+import { WaypointGlyph } from './WaypointGlyph';
 
 type Props = {
   waypoint: Waypoint;
   distance: number | null;
   isTarget: boolean;
+  /** Point voiture le plus récent : badge « Dernière voiture ». */
+  isLatestCar: boolean;
   onToggleTarget: () => void;
   onClose: () => void;
 };
 
-export function WaypointSheet({ waypoint, distance, isTarget, onToggleTarget, onClose }: Props) {
-  const [renaming, setRenaming] = useState(false);
+export function WaypointSheet({ waypoint, distance, isTarget, isLatestCar, onToggleTarget, onClose }: Props) {
+  const [editing, setEditing] = useState(false);
   const [name, setName] = useState(waypoint.name);
+  const [icon, setIcon] = useState(waypoint.icon);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
 
   return (
     <BottomSheet title={waypoint.name} onClose={onClose}>
-      <p className="text-sm text-gray-500">{formatCoords(waypoint)}</p>
-      <p className="mb-3 text-sm text-gray-500">{distance === null ? 'Distance inconnue' : `À ${formatDistance(distance)}`}</p>
-      {renaming ? (
+      <div className="mb-3 flex items-center gap-3">
+        <WaypointGlyph icon={waypoint.icon} size={40} />
+        <div className="min-w-0">
+          {isLatestCar && <p className="mb-0.5 inline-block rounded bg-blue-700 px-1.5 text-xs font-semibold text-white">Dernière voiture</p>}
+          <p className="text-sm text-gray-500">{formatCoords(waypoint)}</p>
+          <p className="text-sm text-gray-500">{distance === null ? 'Distance inconnue' : `À ${formatDistance(distance)}`}</p>
+        </div>
+      </div>
+      {editing ? (
         <form
           className="flex flex-col gap-2"
           onSubmit={async (event) => {
@@ -32,11 +43,11 @@ export function WaypointSheet({ waypoint, distance, isTarget, onToggleTarget, on
             setBusy(true);
             setError(false);
             try {
-              await renameWaypoint(waypoint.id, trimmed);
-              setRenaming(false);
+              await editWaypoint(waypoint.id, trimmed, icon);
+              setEditing(false);
               setBusy(false);
             } catch (err) {
-              console.error('Renommage du waypoint impossible', err);
+              console.error('Modification du point impossible', err);
               setError(true);
               setBusy(false);
             }
@@ -53,6 +64,7 @@ export function WaypointSheet({ waypoint, distance, isTarget, onToggleTarget, on
               OK
             </button>
           </div>
+          <IconPicker value={icon} onChange={setIcon} />
           {error && <p role="alert" className="text-sm text-red-600">Enregistrement impossible sur l'appareil.</p>}
         </form>
       ) : (
@@ -65,8 +77,8 @@ export function WaypointSheet({ waypoint, distance, isTarget, onToggleTarget, on
             >
               {isTarget ? 'Ne plus cibler' : 'Cibler'}
             </button>
-            <button type="button" onClick={() => setRenaming(true)} className="flex-1 rounded-lg bg-gray-100 py-3 font-medium">
-              Renommer
+            <button type="button" onClick={() => setEditing(true)} className="flex-1 rounded-lg bg-gray-100 py-3 font-medium">
+              Modifier
             </button>
             <button
               type="button"
@@ -82,7 +94,7 @@ export function WaypointSheet({ waypoint, distance, isTarget, onToggleTarget, on
                   await deleteWaypoint(waypoint.id);
                   onClose();
                 } catch (err) {
-                  console.error('Suppression du waypoint impossible', err);
+                  console.error('Suppression du point impossible', err);
                   setError(true);
                   setBusy(false);
                 }

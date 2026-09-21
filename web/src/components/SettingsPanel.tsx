@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { LuX } from 'react-icons/lu';
 import { callNative, type AppSettings, type StorageStats } from '../bridge/bridge';
 import { AccountSection } from './AccountSection';
 import { formatBytes } from '../format/formatBytes';
@@ -48,8 +49,8 @@ export function SettingsPanel({ onClose }: Props) {
     <section className="absolute inset-0 z-30 flex flex-col bg-white">
       <header className="flex items-center justify-between border-b border-gray-200 p-3">
         <h2 className="text-lg font-semibold">Paramètres</h2>
-        <button type="button" onClick={onClose} aria-label="Fermer" className="px-3 py-2 text-xl text-gray-500">
-          ✕
+        <button type="button" onClick={onClose} aria-label="Fermer" className="px-3 py-2 text-gray-500">
+          <LuX size={24} aria-hidden />
         </button>
       </header>
       <div className="flex-1 space-y-6 overflow-y-auto p-4">
