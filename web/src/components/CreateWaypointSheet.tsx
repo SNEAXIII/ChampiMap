@@ -15,7 +15,7 @@ export function CreateWaypointSheet({ position, defaultName, onCreate, onCancel 
   const [error, setError] = useState(false);
 
   return (
-    <BottomSheet title="Nouveau waypoint" onClose={onCancel}>
+    <BottomSheet title="Nouveau point" onClose={onCancel}>
       <form
         className="flex flex-col gap-3"
         onSubmit={async (event) => {
@@ -32,7 +32,7 @@ export function CreateWaypointSheet({ position, defaultName, onCreate, onCancel 
         }}
       >
         <input
-          aria-label="Nom du waypoint"
+          aria-label="Nom du point"
           value={name}
           onChange={(event) => setName(event.target.value)}
           className="rounded-lg border border-gray-300 px-3 py-2 text-base"

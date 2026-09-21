@@ -27,8 +27,8 @@ export function WaypointList({ waypoints, reference, onPick, onClose }: Props) {
       <header className="flex items-center gap-2 border-b border-gray-200 p-3">
         <input
           type="search"
-          aria-label="Rechercher un waypoint"
-          placeholder="Rechercher un waypoint"
+          aria-label="Rechercher un point"
+          placeholder="Rechercher un point"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-base"
@@ -39,7 +39,7 @@ export function WaypointList({ waypoints, reference, onPick, onClose }: Props) {
       </header>
       {rows.length === 0 ? (
         <p className="p-6 text-center text-gray-500">
-          {waypoints.length === 0 ? 'Aucun waypoint. Maintiens le doigt sur la carte pour en créer un.' : 'Aucun résultat.'}
+          {waypoints.length === 0 ? 'Aucun point. Maintiens le doigt sur la carte pour en créer un.' : 'Aucun résultat.'}
         </p>
       ) : (
         <ul className="flex-1 overflow-y-auto">

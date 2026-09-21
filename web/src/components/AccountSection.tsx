@@ -37,14 +37,14 @@ export function AccountSection() {
 
   return (
     <section>
-      <h3 className="mb-2 text-sm font-semibold text-gray-500 uppercase">Sauvegarder mes waypoints</h3>
+      <h3 className="mb-2 text-sm font-semibold text-gray-500 uppercase">Sauvegarder mes points</h3>
       {!supabase ? (
         <p className="text-sm text-gray-500">Sauvegarde cloud non configurée.</p>
       ) : session === undefined ? (
         <p className="text-sm text-gray-500">…</p>
       ) : session === null ? (
         <>
-          <p className="mb-2 text-sm text-gray-600">Connecte-toi pour retrouver tes waypoints sur un autre téléphone.</p>
+          <p className="mb-2 text-sm text-gray-600">Connecte-toi pour retrouver tes points sur un autre téléphone.</p>
           <button
             type="button"
             disabled={busy || !online}
@@ -59,7 +59,7 @@ export function AccountSection() {
           <p className="text-sm">Connecté : {session.user.email}</p>
           <p className="text-sm text-gray-600">
             {visibleDirtyCount === 0 && dirtyDeletionsCount === 0
-              ? '☁️ Tous les waypoints sont sauvegardés'
+              ? '☁️ Tous les points sont sauvegardés'
               : visibleDirtyCount > 0
                 ? `📱 ${visibleDirtyCount} waypoint${visibleDirtyCount > 1 ? 's' : ''} sur l'appareil`
                 : `📱 ${dirtyDeletionsCount} suppression${dirtyDeletionsCount > 1 ? 's' : ''} pas encore sauvegardée${dirtyDeletionsCount > 1 ? 's' : ''}`}
@@ -98,7 +98,7 @@ export function AccountSection() {
               {confirmSignOut ? 'Confirmer' : 'Se déconnecter'}
             </button>
           </div>
-          {confirmSignOut && <p className="mt-2 text-xs text-gray-500">Les waypoints seront retirés de ce téléphone après une dernière sauvegarde.</p>}
+          {confirmSignOut && <p className="mt-2 text-xs text-gray-500">Les points seront retirés de ce téléphone après une dernière sauvegarde.</p>}
         </>
       )}
       {(error ?? sync.lastError) && <p className="mt-2 text-sm text-red-700">{error ?? sync.lastError}</p>}

@@ -39,6 +39,7 @@ _Avoid_: fog, zone grisée
 **Waypoint**:
 Un point nommé (nom, latitude, longitude) appartenant à un utilisateur.
 _Avoid_: POI, marqueur, favori
+_Libellé UI_ : point
 
 **Waypoint local**:
 Un waypoint dont la dernière version n'a pas encore été envoyée au cloud.

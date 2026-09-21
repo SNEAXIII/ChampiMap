@@ -14,7 +14,7 @@ export function PositionSheet({ fix, onCreateWaypoint, onClose }: Props) {
       <p className="text-sm text-gray-500">{formatCoords(fix)}</p>
       <p className="mb-3 text-sm text-gray-500">Précision : {fix.accuracy === null ? 'inconnue' : `± ${Math.round(fix.accuracy)} m`}</p>
       <button type="button" onClick={onCreateWaypoint} className="w-full rounded-lg bg-emerald-700 py-3 font-medium text-white">
-        Créer un waypoint ici
+        Créer un point ici
       </button>
     </BottomSheet>
   );

@@ -16,7 +16,7 @@ function BarButton({ icon, label, onClick }: { icon: string; label: string; onCl
 export function BottomBar({ onOpenWaypoints, onOpenClaims, onOpenSettings }: Props) {
   return (
     <nav className="flex border-t border-gray-200 bg-white">
-      <BarButton icon="📍" label="Waypoints" onClick={onOpenWaypoints} />
+      <BarButton icon="📍" label="Points" onClick={onOpenWaypoints} />
       <BarButton icon="🗺️" label="Zones hors ligne" onClick={onOpenClaims} />
       <BarButton icon="⚙️" label="Paramètres" onClick={onOpenSettings} />
     </nav>
