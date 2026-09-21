@@ -104,6 +104,7 @@ class DownloadService : Service() {
             // IO, disque plein) plutôt qu'une couverture IGN manquante — on marque une pause avant de retenter,
             // par petits pas pour rester interruptible (arrêt du service ou suppression de la zone en cours de
             // pause). waitForNetwork() est réappelé au tour suivant par la boucle si le réseau est aussi tombé.
+            publish(claim, total, total, waitingForNetwork = false, retryFailures = result.failures)
             pauseBeforeRetry(claim)
         }
         DownloadHub.forget(claim.id)
@@ -126,12 +127,17 @@ class DownloadService : Service() {
         }
     }
 
-    private fun publish(claim: Claim, done: Long, total: Long, waitingForNetwork: Boolean) {
-        DownloadHub.publishProgress(DownloadHub.Progress(claim.id, done, total, waitingForNetwork))
+    private fun publish(claim: Claim, done: Long, total: Long, waitingForNetwork: Boolean, retryFailures: Int = 0) {
+        DownloadHub.publishProgress(DownloadHub.Progress(claim.id, done, total, waitingForNetwork, retryFailures))
         val now = System.currentTimeMillis()
-        if (now - lastNotificationAt < 1_000) return
+        // Changement d'état (pause avant nouvel essai) toujours affiché, la progression au plus 1 fois par seconde.
+        if (retryFailures == 0 && now - lastNotificationAt < 1_000) return
         lastNotificationAt = now
-        val text = if (waitingForNetwork) "${claim.name} · en attente du réseau" else "${claim.name} · ${done * 100 / total} % · $done / $total images"
+        val text = when {
+            waitingForNetwork -> "${claim.name} · en attente du réseau"
+            retryFailures > 0 -> "${claim.name} · $retryFailures images en échec, nouvel essai dans 1 min"
+            else -> "${claim.name} · ${done * 100 / total} % · $done / $total images"
+        }
         getSystemService(NotificationManager::class.java)
             .notify(NOTIFICATION_ID, notification(text, done, total))
     }

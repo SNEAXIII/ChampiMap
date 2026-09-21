@@ -1,12 +1,25 @@
 package fr.champimap
 
+import android.util.Log
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Semaphore
 
+/** Résultat d'une requête IGN pour un chunk. */
+sealed interface Fetch {
+    class Data(val bytes: ByteArray) : Fetch
+
+    /** 404 : l'IGN n'a pas d'image ici (hors couverture : mer, étranger). Réessayer ne sert à rien. */
+    data object Missing : Fetch
+
+    /** Erreur réseau, délai dépassé, 429/5xx, réponse inattendue : peut réussir plus tard. */
+    data object Failed : Fetch
+}
+
 /** Plan IGN v2 (Géoplateforme, WMTS sans clé). */
 object ChunkSource {
+    private const val TAG = "ChunkSource"
     private const val USER_AGENT = "ChampiMap/0.1 (carte hors ligne, usage personnel)"
     private const val CONNECT_TIMEOUT_MS = 5_000
     private const val READ_TIMEOUT_MS = 8_000
@@ -25,7 +38,9 @@ object ChunkSource {
             "&TILEMATRIX=${id.z}&TILEROW=${id.y}&TILECOL=${id.x}&FORMAT=image/png"
 
     /** Octets PNG du chunk, ou null (hors couverture, erreur réseau, réponse inattendue). */
-    fun download(id: ChunkId, interactive: Boolean = true): ByteArray? {
+    fun download(id: ChunkId, interactive: Boolean = true): ByteArray? = (fetch(id, interactive) as? Fetch.Data)?.bytes
+
+    fun fetch(id: ChunkId, interactive: Boolean = true): Fetch {
         val limit = if (interactive) interactiveLimit else backgroundLimit
         limit.acquire()
         try {
@@ -35,17 +50,24 @@ object ChunkSource {
                 connection.connectTimeout = CONNECT_TIMEOUT_MS
                 connection.readTimeout = READ_TIMEOUT_MS
                 connection.setRequestProperty("User-Agent", USER_AGENT)
-                if (connection.responseCode == 200 && connection.contentType?.startsWith("image/") == true) {
-                    connection.inputStream.use { it.readBytes() }
+                val code = connection.responseCode
+                if (code == 200 && connection.contentType?.startsWith("image/") == true) {
+                    Fetch.Data(connection.inputStream.use { it.readBytes() })
                 } else {
                     // Corps d'erreur lu jusqu'au bout : la connexion peut alors resservir (keep-alive).
                     connection.errorStream?.use { it.readBytes() }
-                    null
+                    if (code == 404) {
+                        Fetch.Missing
+                    } else {
+                        Log.w(TAG, "Chunk $id : HTTP $code ${connection.contentType}")
+                        Fetch.Failed
+                    }
                 }
             } catch (e: IOException) {
+                Log.w(TAG, "Chunk $id : ${e.javaClass.simpleName} ${e.message}")
                 // Connexion dans un état inconnu : on la ferme plutôt que de la remettre dans le pool.
                 connection?.disconnect()
-                null
+                Fetch.Failed
             }
         } finally {
             limit.release()

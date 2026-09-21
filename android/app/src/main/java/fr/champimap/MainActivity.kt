@@ -339,6 +339,7 @@ class MainActivity : ComponentActivity() {
         .put("done", done)
         .put("total", total)
         .put("waitingForNetwork", waitingForNetwork)
+        .put("retryFailures", retryFailures)
 
     private fun setLightSystemBarIcons() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

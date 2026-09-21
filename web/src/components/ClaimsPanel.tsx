@@ -14,6 +14,7 @@ function statusText(claim: Claim, progress: ClaimProgress | undefined): string {
   if (claim.status === 'complete') return 'Complète';
   if (!progress) return 'En attente';
   if (progress.waitingForNetwork) return 'En pause (pas de réseau)';
+  if (progress.retryFailures > 0) return 'Nouvel essai dans 1 min';
   return `${Math.floor((progress.done * 100) / Math.max(1, progress.total))} %`;
 }
 
@@ -69,7 +70,9 @@ function ClaimRow({ claim, progress, onShow }: { claim: Claim; progress: ClaimPr
           </p>
           {claim.status === 'downloading' && progress && (
             <p className="text-sm text-gray-500 tabular-nums">
-              {progress.done.toLocaleString('fr-FR')} / {progress.total.toLocaleString('fr-FR')} images
+              {progress.retryFailures > 0
+                ? `${progress.retryFailures.toLocaleString('fr-FR')} image${progress.retryFailures > 1 ? 's' : ''} en échec`
+                : `${progress.done.toLocaleString('fr-FR')} / ${progress.total.toLocaleString('fr-FR')} images`}
             </p>
           )}
           <div className="mt-2 flex gap-2 text-sm">

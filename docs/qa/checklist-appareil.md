@@ -164,3 +164,4 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] N6 Worker MapLibre (les couches GeoJSON ne s'affichaient jamais) : cercle de précision autour du point bleu, contour pointillé vert d'une zone complète, voile gris d'une zone en cours, brouillard hors ligne (mode avion)
 - [ ] N7 Pendant le téléchargement d'une zone, la taille affichée dans la liste augmente (plus de valeur figée jusqu'à la fin)
 - [ ] N8 Télécharger une zone de plusieurs cases, carte ouverte dessus : le voile gris se lève case par case pendant le téléchargement (pas tout d'un coup à la fin)
+- [ ] N9 Zone débordant hors couverture IGN (frontière suisse ou côte) : le téléchargement se termine sans rester figé à 100 % ; si des images échouent vraiment, la liste affiche « Nouvel essai dans 1 min · N images en échec » (et la notification aussi)

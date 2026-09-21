@@ -6,7 +6,14 @@ import java.util.concurrent.CopyOnWriteArraySet
 /** Progression des téléchargements de claims, du service vers l'activité. */
 object DownloadHub {
 
-    data class Progress(val claimId: String, val done: Long, val total: Long, val waitingForNetwork: Boolean)
+    /** `retryFailures` > 0 : passe terminée avec autant d'échecs, pause avant de réessayer. */
+    data class Progress(
+        val claimId: String,
+        val done: Long,
+        val total: Long,
+        val waitingForNetwork: Boolean,
+        val retryFailures: Int = 0,
+    )
 
     interface Listener {
         fun onProgress(progress: Progress) {}
@@ -41,7 +48,8 @@ object DownloadHub {
         val previous = latest.put(progress.claimId, progress)
         val now = System.currentTimeMillis()
         val isFinal = progress.done >= progress.total
-        val waitingChanged = previous?.waitingForNetwork != progress.waitingForNetwork
+        val waitingChanged = previous?.waitingForNetwork != progress.waitingForNetwork ||
+            previous.retryFailures != progress.retryFailures
         val elapsed = now - (lastNotifiedAt[progress.claimId] ?: 0L)
         if (!isFinal && !waitingChanged && elapsed < THROTTLE_MS) return
         lastNotifiedAt[progress.claimId] = now

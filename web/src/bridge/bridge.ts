@@ -15,7 +15,8 @@ export type Claim = {
   status: 'downloading' | 'complete';
   bytes: number;
 };
-export type ClaimProgress = { claimId: string; done: number; total: number; waitingForNetwork: boolean };
+/** `retryFailures` > 0 : passe terminée avec autant d'échecs, nouvel essai dans 1 min. */
+export type ClaimProgress = { claimId: string; done: number; total: number; waitingForNetwork: boolean; retryFailures: number };
 type RegionRectParams = { xMin: number; yMin: number; xMax: number; yMax: number };
 
 /** Méthodes exposées par Kotlin : paramètres et résultat. */

@@ -48,7 +48,13 @@ object ChunkDownloader {
                             when {
                                 store.contains(id) -> true
                                 !shouldContinue() -> null
-                                else -> ChunkSource.download(id, interactive = false)?.also { store.write(id, it) } != null
+                                else -> when (val fetched = ChunkSource.fetch(id, interactive = false)) {
+                                    is Fetch.Data -> true.also { store.write(id, fetched.bytes) }
+                                    // Hors couverture IGN : rien à stocker, et pas un échec (sinon la zone
+                                    // repasserait 3 fois, avec une pause d'1 min entre chaque, pour rien).
+                                    Fetch.Missing -> true
+                                    Fetch.Failed -> false
+                                }
                             }
                         } catch (e: Exception) {
                             Log.w(TAG, "Échec du chunk $id", e)
