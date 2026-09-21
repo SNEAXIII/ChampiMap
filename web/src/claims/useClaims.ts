@@ -19,12 +19,21 @@ export function useClaims(): { claims: Claim[]; progress: Record<string, ClaimPr
         .catch(console.warn);
     };
     refresh();
+    // La taille d'une zone (claim.bytes) ne vient que de listClaims : pendant un téléchargement, on la relit
+    // au plus toutes les 2 s, sinon elle resterait figée à sa valeur de création jusqu'à la fin.
+    let lastSizeRefreshAt = 0;
     const unsubscribers = [
       onNative('claimsChanged', () => {
         refresh();
         setProgress({});
       }),
-      onNative('claimProgress', (update) => setProgress((current) => ({ ...current, [update.claimId]: update }))),
+      onNative('claimProgress', (update) => {
+        setProgress((current) => ({ ...current, [update.claimId]: update }));
+        if (Date.now() - lastSizeRefreshAt >= 2000) {
+          lastSizeRefreshAt = Date.now();
+          refresh();
+        }
+      }),
     ];
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, []);
