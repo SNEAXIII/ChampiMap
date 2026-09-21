@@ -214,7 +214,7 @@ export function App() {
         {viseur && <Viseur viseur={viseur} />}
         {map && <NorthButton map={map} hidden={followMode === 'follow'} />}
         <CompassWarnings heading={heading} active={keepScreenOn} />
-        {map && fix && target && <TargetArrow map={map} fix={fix} target={target} />}
+        {map && fix && target && <TargetArrow map={map} fix={fix} target={target} stale={stale} />}
         {target && <TargetBanner target={target} distance={fix ? distanceMeters(fix, target) : null} onStop={() => setTargetId(null)} />}
         <LocateButton mode={followMode} onPress={pressLocate} />
         {sheet?.kind === 'create' && (
