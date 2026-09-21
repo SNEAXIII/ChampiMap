@@ -11,7 +11,7 @@ Les termes inspirés de Minecraft (Chunk, Région, Claim) appartiennent au code 
 **Chunk**:
 Une image de carte identifiée par son zoom, sa colonne x et sa ligne y.
 _Avoid_: tuile, tile
-_Libellé UI_ : jamais affiché
+_Libellé UI_ : image (seulement le compteur de progression d'une zone hors ligne)
 
 **Région**:
 La plus petite surface carrée sélectionnable pour un claim, alignée sur une grille fixe (sens Minecraft). Ce n'est jamais une forme libre dessinée par l'utilisateur.

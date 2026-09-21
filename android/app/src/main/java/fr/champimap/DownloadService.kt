@@ -131,7 +131,7 @@ class DownloadService : Service() {
         val now = System.currentTimeMillis()
         if (now - lastNotificationAt < 1_000) return
         lastNotificationAt = now
-        val text = if (waitingForNetwork) "${claim.name} · en attente du réseau" else "${claim.name} · ${done * 100 / total} %"
+        val text = if (waitingForNetwork) "${claim.name} · en attente du réseau" else "${claim.name} · ${done * 100 / total} % · $done / $total images"
         getSystemService(NotificationManager::class.java)
             .notify(NOTIFICATION_ID, notification(text, done, total))
     }
