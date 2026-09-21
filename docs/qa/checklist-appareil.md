@@ -135,3 +135,12 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] K5 Glisser la carte au doigt (sortie du Suivi) : la carte garde sa rotation et le bouton nord ▲ apparaît ; taper dessus : nord en haut, le bouton disparaît
 - [ ] K6 Tap ◎ (Centré) : nord en haut
 - [ ] K7 Si « Boussole imprécise » s'affiche à un moment, faire un 8 avec le téléphone : le bandeau disparaît
+
+### Task 2 — cible
+- [ ] L1 Créer (ou utiliser) un waypoint à 100–500 m, dans une direction connue. Tap dessus → [Cibler] : la feuille se ferme, le bandeau « 🎯 Nom · N m » apparaît en bas à gauche, et une flèche verte orbite autour du point bleu vers le waypoint
+- [ ] L2 Dézoomer/déplacer la carte pour que le waypoint sorte de l'écran : la flèche pointe toujours vers lui
+- [ ] L3 Suivi ◉ : la carte tourne avec le téléphone, et la flèche reste orientée vers le waypoint réel (se tourner dans la direction indiquée pour confirmer)
+- [ ] L4 Écran : `timeout 30 adb shell dumpsys window | grep -i KEEP_SCREEN_ON` actif, même après être sorti du Suivi (glisser la carte), tant que la cible est active
+- [ ] L5 Créer un waypoint « Ici » sur sa propre position (tap point bleu → Créer), le cibler : bandeau vert « ✅ Arrivé · Ici » (distance < 10 m). La cible n'est pas arrêtée automatiquement
+- [ ] L6 ✕ sur le bandeau : bandeau et flèche disparaissent. Hors Suivi, le flag KEEP_SCREEN_ON disparaît
+- [ ] L7 Cibler un waypoint, relancer l'app : la cible est toujours active. Supprimer ce waypoint : la cible disparaît

@@ -17,7 +17,10 @@ import { PositionSheet } from './components/PositionSheet';
 import { LocateButton, type FollowMode } from './components/LocateButton';
 import { NorthButton } from './components/NorthButton';
 import { CompassWarnings } from './components/CompassWarnings';
+import { TargetArrow } from './components/TargetArrow';
+import { TargetBanner } from './components/TargetBanner';
 import { useLongPressViseur } from './map/useLongPressViseur';
+import { useTarget } from './target/useTarget';
 import { useWaypoints } from './waypoints/useWaypoints';
 import { useClaims } from './claims/useClaims';
 import { rectBounds } from './claims/regions';
@@ -50,6 +53,13 @@ export function App() {
   const fix = location.fix;
   const stale = useStale(fix, location.running);
   const heading = useHeading();
+  const [targetId, setTargetId] = useTarget();
+  const target = waypoints.find((waypoint) => waypoint.id === targetId) ?? null;
+
+  // Cible supprimée (ici ou via la sync) : on arrête de la cibler.
+  useEffect(() => {
+    if (targetId !== null && waypoints.length > 0 && target === null) setTargetId(null);
+  }, [targetId, target, waypoints.length, setTargetId]);
 
   const openCreateSheet = useCallback((lngLat: LngLat) => {
     setSheet({ kind: 'create', position: { latitude: lngLat.lat, longitude: lngLat.lng }, defaultName: defaultWaypointName() });
@@ -141,10 +151,11 @@ export function App() {
     });
   }, [map, fix, followMode, heading]);
 
-  // Écran allumé uniquement en Suivi.
+  // Écran allumé uniquement en Suivi ou avec une Cible active.
+  const keepScreenOn = followMode === 'follow' || target !== null;
   useEffect(() => {
-    callNative('setKeepScreenOn', { on: followMode === 'follow' }).catch(console.warn);
-  }, [followMode]);
+    callNative('setKeepScreenOn', { on: keepScreenOn }).catch(console.warn);
+  }, [keepScreenOn]);
 
   // Si le fix disparaît (resync natif) pendant que la feuille « Ma position » est ouverte, la fermer.
   useEffect(() => {
@@ -199,7 +210,9 @@ export function App() {
         {map && <WaypointMarkers map={map} waypoints={waypoints} onSelect={(id) => setSheet({ kind: 'waypoint', id })} />}
         {viseur && <Viseur viseur={viseur} />}
         {map && <NorthButton map={map} hidden={followMode === 'follow'} />}
-        <CompassWarnings heading={heading} active={followMode === 'follow'} />
+        <CompassWarnings heading={heading} active={keepScreenOn} />
+        {map && fix && target && <TargetArrow map={map} fix={fix} target={target} />}
+        {target && <TargetBanner target={target} distance={fix ? distanceMeters(fix, target) : null} onStop={() => setTargetId(null)} />}
         <LocateButton mode={followMode} onPress={pressLocate} />
         {sheet?.kind === 'create' && (
           <CreateWaypointSheet
@@ -225,6 +238,11 @@ export function App() {
             key={selected.id}
             waypoint={selected}
             distance={fix ? distanceMeters(fix, selected) : null}
+            isTarget={targetId === selected.id}
+            onToggleTarget={() => {
+              setTargetId(targetId === selected.id ? null : selected.id);
+              setSheet(null);
+            }}
             onClose={() => setSheet(null)}
           />
         )}
