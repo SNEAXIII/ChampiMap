@@ -18,7 +18,7 @@ export type WaypointIcon = { id: string; label: string; Icon: IconType; color: s
 /** Catalogue des icônes de points. `id` est stocké (IndexedDB, Supabase) : ne jamais le renommer. */
 export const WAYPOINT_ICONS: WaypointIcon[] = [
   { id: 'pin', label: 'Point', Icon: LuMapPin, color: '#047857' },
-  { id: 'mushroom', label: 'Champignon', Icon: GiMushroomGills, color: '#b45309' },
+  { id: 'mushroom', label: 'Champi', Icon: GiMushroomGills, color: '#b45309' },
   { id: 'cepe', label: 'Cèpe', Icon: GiMushroom, color: '#92400e' },
   { id: 'girolle', label: 'Girolle', Icon: GiChanterelles, color: '#d97706' },
   { id: 'mushroom-spot', label: 'Coin à champis', Icon: GiMushrooms, color: '#9a3412' },

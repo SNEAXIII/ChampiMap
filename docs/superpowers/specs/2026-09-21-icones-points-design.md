@@ -14,7 +14,7 @@
 | id | Libellé | Icône | Couleur |
 |---|---|---|---|
 | `pin` | Point | `LuMapPin` | `#047857` |
-| `mushroom` | Champignon | `GiMushroomGills` | `#b45309` |
+| `mushroom` | Champi | `GiMushroomGills` | `#b45309` |
 | `cepe` | Cèpe | `GiMushroom` | `#92400e` |
 | `girolle` | Girolle | `GiChanterelles` | `#d97706` |
 | `mushroom-spot` | Coin à champis | `GiMushrooms` | `#9a3412` |
