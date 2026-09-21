@@ -100,3 +100,15 @@ Appareil : Samsung R5GYB08Q2NV (+ émulateur Android 10 `champi-api29` si mémoi
 - [ ] H3 Mode avion, attendre 3 s, zoomer au niveau 11 autour d'une zone complète : les cases ni en zone ni déjà vues sont voilées, la zone complète et les secteurs parcourus ne le sont pas
 - [ ] H4 Dézoomer sous le niveau 10 : pas de voile hors ligne
 - [ ] H5 Désactiver le mode avion : le voile hors ligne disparaît sous ~3 s ; vérifier `airplane_mode_on` = `0`
+
+## Phase 6 — sauvegarde Supabase
+
+Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local.properties remplis).
+
+### Task 2 — connexion Google
+- [ ] I1 Paramètres : section « Sauvegarder mes waypoints » avec [Se connecter avec Google]
+- [ ] I2 Tap : la feuille Google Credential Manager s'ouvre ; choisir un compte soi-même
+- [ ] I3 Capture : « Connecté : <email> » ; relancer l'app (force-stop + start) : toujours connecté (session persistée)
+- [ ] I4 En cas d'erreur affichée, la rapporter mot pour mot (pistes : SHA-1 du client Android, Client IDs dans Supabase, « Nonces mismatch »)
+- [ ] I5 [Se déconnecter] : le bouton de connexion revient
+- [ ] I6 Mode avion : le bouton affiche « Connexion impossible hors ligne », l'app reste utilisable ; désactiver le mode avion, vérifier `airplane_mode_on` = `0`
