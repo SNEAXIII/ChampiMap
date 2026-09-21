@@ -38,7 +38,8 @@ export type Sheet =
   | { kind: 'position' }
   | null;
 
-/** Zoom appliqué par le bouton de localisation (≈ 0,8 m par px en France : ≈ 300 m de large sur un téléphone). */
+/** Zoom appliqué par le bouton de localisation (≈ 0,8 m par px en France : ≈ 300 m de large sur un téléphone).
+ *  Kotlin pré-télécharge les chunks de cette vue (Prefetcher.prefetchLocateView) : à changer ensemble. */
 const LOCATE_ZOOM = 16;
 
 export type Panel = 'waypoints' | 'claims' | 'settings' | null;

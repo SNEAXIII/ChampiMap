@@ -174,3 +174,4 @@ Prérequis : `npx supabase db push` (colonne `icon`) fait avant l'installation.
 - [ ] O4 Supprimer la dernière voiture : la précédente passe en surbrillance
 - [ ] O5 Sync : icône changée, attendre ☁ (icône nuage dans la liste) ; se déconnecter / reconnecter : les icônes reviennent à l'identique
 - [ ] O6 Plus aucun emoji : barre du bas, bouton de localisation (3 états), bouton nord, badge GPS, bandeau de cible, alertes boussole, croix de fermeture
+- [ ] N10 GPS actif en 4G, sans l'option « pré-téléchargement en données mobiles » : attendre ~10 s après le premier fix, dézoomer loin puis appuyer sur le bouton de localisation : la vue au zoom 16 s'affiche aussitôt (pas de tuiles vides qui arrivent une à une)
