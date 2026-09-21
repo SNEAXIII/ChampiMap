@@ -15,12 +15,15 @@ import { GpsBadge } from './components/GpsBadge';
 import { PositionLayer } from './components/PositionLayer';
 import { PositionSheet } from './components/PositionSheet';
 import { LocateButton, type FollowMode } from './components/LocateButton';
+import { NorthButton } from './components/NorthButton';
+import { CompassWarnings } from './components/CompassWarnings';
 import { useLongPressViseur } from './map/useLongPressViseur';
 import { useWaypoints } from './waypoints/useWaypoints';
 import { useClaims } from './claims/useClaims';
 import { rectBounds } from './claims/regions';
 import { useLocation } from './location/useLocation';
 import { useStale } from './location/useStale';
+import { useHeading } from './location/useHeading';
 import { createWaypoint, defaultWaypointName, type Waypoint } from './waypoints/waypointStore';
 import { callNative, onNative } from './bridge/bridge';
 import { distanceMeters, type LatLon } from './geo/geo';
@@ -46,6 +49,7 @@ export function App() {
   const { claims, progress } = useClaims();
   const fix = location.fix;
   const stale = useStale(fix, location.running);
+  const heading = useHeading();
 
   const openCreateSheet = useCallback((lngLat: LngLat) => {
     setSheet({ kind: 'create', position: { latitude: lngLat.lat, longitude: lngLat.lng }, defaultName: defaultWaypointName() });
@@ -84,17 +88,24 @@ export function App() {
     };
   }, [map]);
 
-  // Suivi : la carte suit chaque nouvelle position. Premier tap sans position : centrer dès qu'elle arrive.
+  // Premier tap sans position : centrer (nord en haut) dès qu'elle arrive.
   useEffect(() => {
-    if (!map || !fix) return;
-    if (centerOnNextFix) {
-      setCenterOnNextFix(false);
-      setFollowMode('centered');
-      map.easeTo({ center: [fix.longitude, fix.latitude], bearing: 0 });
-    } else if (followMode === 'follow') {
-      map.easeTo({ center: [fix.longitude, fix.latitude], duration: 500 });
-    }
-  }, [map, fix, followMode, centerOnNextFix]);
+    if (!map || !fix || !centerOnNextFix) return;
+    setCenterOnNextFix(false);
+    setFollowMode('centered');
+    map.easeTo({ center: [fix.longitude, fix.latitude], bearing: 0 });
+  }, [map, fix, centerOnNextFix]);
+
+  // Suivi : la carte suit la position et tourne selon le cap.
+  const headingDegrees = heading?.heading ?? null;
+  useEffect(() => {
+    if (!map || !fix || followMode !== 'follow') return;
+    map.easeTo({
+      center: [fix.longitude, fix.latitude],
+      bearing: headingDegrees ?? map.getBearing(),
+      duration: 200,
+    });
+  }, [map, fix, followMode, headingDegrees]);
 
   // Écran allumé uniquement en Suivi.
   useEffect(() => {
@@ -121,7 +132,9 @@ export function App() {
       setFollowMode('follow');
       map.easeTo({ center });
     } else {
+      // Centré = nord en haut.
       setFollowMode('centered');
+      map.easeTo({ center, bearing: 0 });
     }
   };
 
@@ -148,9 +161,11 @@ export function App() {
         <MapView onMapReady={setMap} />
         <GpsBadge location={location} stale={stale} />
         {map && <ClaimOverlays map={map} claims={claims} />}
-        {map && <PositionLayer map={map} fix={fix} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
+        {map && <PositionLayer map={map} fix={fix} heading={headingDegrees} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
         {map && <WaypointMarkers map={map} waypoints={waypoints} onSelect={(id) => setSheet({ kind: 'waypoint', id })} />}
         {viseur && <Viseur viseur={viseur} />}
+        {map && <NorthButton map={map} hidden={followMode === 'follow'} />}
+        <CompassWarnings heading={heading} active={followMode === 'follow'} />
         <LocateButton mode={followMode} onPress={pressLocate} />
         {sheet?.kind === 'create' && (
           <CreateWaypointSheet

@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private lateinit var bridge: NativeBridge
     private var locationPermissionDenied = false
+    private lateinit var headingSensor: HeadingSensor
 
     // StrictMode (debug) invoque effects deux fois : évite un double permissionLauncher.launch()
     // dont le second retour (map vide) serait pris pour un refus.
@@ -115,6 +116,12 @@ class MainActivity : ComponentActivity() {
         }
 
         bridge = NativeBridge(this, webView)
+        headingSensor = HeadingSensor(this) { heading, tilted, needsCalibration ->
+            bridge.emit(
+                "heading",
+                JSONObject().put("heading", heading).put("tilted", tilted).put("needsCalibration", needsCalibration),
+            )
+        }
         bridge.handle("setBackEnabled") { params ->
             val enabled = params.getBoolean("enabled")
             runOnUiThread { backCallback.isEnabled = enabled }
@@ -224,6 +231,7 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         LocationHub.addListener(locationListener)
         LocationHub.setAppVisible(true)
+        headingSensor.start()
         // Le listener vient d'être (ré)attaché : la page a pu rater un changement pendant qu'on était
         // en arrière-plan (ex. arrêt depuis la notification), on lui renvoie l'état courant.
         resyncLocationState()
@@ -242,6 +250,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        headingSensor.stop()
         LocationHub.setAppVisible(false)
         LocationHub.removeListener(locationListener)
         DownloadHub.removeListener(downloadListener)

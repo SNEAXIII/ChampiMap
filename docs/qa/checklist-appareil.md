@@ -123,3 +123,14 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] J6b Après J6, renommer « Serveur » en « Serveur 2 » sur le téléphone : il passe à ☁️, et Supabase (Table Editor) affiche « Serveur 2 »
 - [ ] J7 Se déconnecter (en ligne) : la liste est vide. Se reconnecter : « Serveur » revient, et `Sync B` reste supprimé (non affiché)
 - [ ] J8 Relancer l'app : aucune erreur de sync affichée, les waypoints sont toujours là
+
+## Phase 7 — boussole et cible
+
+### Task 1 — cap et Suivi
+- [ ] K1 Téléphone posé à plat, haut du téléphone vers le nord (boussole ou repère connu) : le cône bleu du marqueur pointe vers le haut de la carte (nord en haut)
+- [ ] K2 Se tourner de 90° vers l'est : le cône pointe vers la droite de la carte
+- [ ] K3 Tap ◎ deux fois (Suivi ◉) : la carte tourne, le haut de l'écran correspond à la direction du téléphone ; se tourner lentement : la carte suit sans saccades gênantes (signaler sinon)
+- [ ] K4 Redresser le téléphone à la verticale : le bandeau « Tiens le téléphone à plat » apparaît ; le reposer à plat : il disparaît
+- [ ] K5 Glisser la carte au doigt (sortie du Suivi) : la carte garde sa rotation et le bouton nord ▲ apparaît ; taper dessus : nord en haut, le bouton disparaît
+- [ ] K6 Tap ◎ (Centré) : nord en haut
+- [ ] K7 Si « Boussole imprécise » s'affiche à un moment, faire un 8 avec le téléphone : le bandeau disparaît

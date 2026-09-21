@@ -76,6 +76,20 @@ export function createFakeNative(receive: Receive): { postMessage(message: strin
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') emitFake('back', null);
   });
+  // Cap simulé : orientation absolue du navigateur si disponible, sinon touches [ et ] (±10°).
+  let fakeHeading = 0;
+  const emitHeading = () => emitFake('heading', { heading: fakeHeading, tilted: false, needsCalibration: false });
+  window.addEventListener('deviceorientationabsolute', (event) => {
+    const alpha = (event as DeviceOrientationEvent).alpha;
+    if (alpha === null) return;
+    fakeHeading = (360 - alpha) % 360;
+    emitHeading();
+  });
+  window.addEventListener('keydown', (event) => {
+    if (event.key !== '[' && event.key !== ']') return;
+    fakeHeading = (fakeHeading + (event.key === ']' ? 10 : 350)) % 360;
+    emitHeading();
+  });
   return {
     postMessage(message: string) {
       const { id, method, params } = JSON.parse(message) as {
