@@ -282,6 +282,10 @@ class MainActivity : ComponentActivity() {
             }
         }
         resyncLocationState()
+        // Même signal « la page est prête » que resyncLocationState ci-dessus, côté cap : un démarrage
+        // à froid où le premier relevé du capteur (juste après onStart) aurait couru plus vite que
+        // l'abonnement JS laisserait sinon un téléphone immobile sans cône de cap.
+        headingSensor.resync()
     }
 
     private fun startLocationService() {

@@ -46,6 +46,16 @@ class HeadingSensor(
         sensors.unregisterListener(this)
     }
 
+    // La page vient peut-être de (re)charger, après que le capteur ait déjà émis une première fois :
+    // sans ça, un téléphone resté immobile au démarrage ne réémettrait jamais tant qu'il ne bouge pas,
+    // et cette première émission (juste après start(), avant que la page écoute) serait perdue.
+    // Le vecteur de rotation est un capteur composite qui continue de rapporter à intervalle régulier
+    // même immobile : forcer une émission au prochain relevé (comme start()) suffit, pas besoin de
+    // rejouer nous-mêmes la dernière valeur connue.
+    fun resync() {
+        lastHeading = Double.NaN
+    }
+
     override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
         if (sensor.type == Sensor.TYPE_MAGNETIC_FIELD) {
             needsCalibration = accuracy <= SensorManager.SENSOR_STATUS_ACCURACY_LOW
