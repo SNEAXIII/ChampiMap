@@ -16,6 +16,10 @@ create index waypoints_user_synced_at on public.waypoints (user_id, synced_at);
 
 alter table public.waypoints enable row level security;
 
+-- Le rôle authenticated doit avoir le privilège SQL de base ; RLS restreint ensuite aux lignes de l'utilisateur.
+-- Pas de delete : la suppression reste logique (deleted_at), cf. commentaire plus bas.
+grant select, insert, update on public.waypoints to authenticated;
+
 create policy "waypoints: lecture de ses lignes" on public.waypoints
   for select to authenticated using ((select auth.uid()) = user_id);
 
