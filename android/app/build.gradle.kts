@@ -1,6 +1,13 @@
+import java.util.Properties
+
 plugins {
     // AGP 9 : Kotlin intégré, ne pas ajouter org.jetbrains.kotlin.android.
     id("com.android.application")
+}
+
+// android/local.properties (ignoré par git) : champimap.googleWebClientId=…apps.googleusercontent.com
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
 
 android {
@@ -13,6 +20,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${localProperties.getProperty("champimap.googleWebClientId", "")}\"")
     }
 
     buildFeatures {

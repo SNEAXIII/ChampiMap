@@ -16,3 +16,6 @@ android/app/src/main/assets/web/
 .DS_Store
 Thumbs.db
 .vscode/
+
+# configuration locale (Supabase)
+web/.env*.local
