@@ -16,6 +16,7 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /** Connexion Google native (ADR 0002) : renvoie l'idToken et le nonce brut à passer à Supabase. */
 object GoogleSignIn {
@@ -38,11 +39,12 @@ object GoogleSignIn {
         val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
 
         val future = CompletableFuture<GetCredentialResponse>()
+        val signal = CancellationSignal()
         activity.runOnUiThread {
             CredentialManager.create(activity).getCredentialAsync(
                 activity,
                 request,
-                CancellationSignal(),
+                signal,
                 activity.mainExecutor,
                 object : CredentialManagerCallback<GetCredentialResponse, GetCredentialException> {
                     override fun onResult(result: GetCredentialResponse) {
@@ -60,6 +62,14 @@ object GoogleSignIn {
             future.get(3, TimeUnit.MINUTES).credential
         } catch (e: ExecutionException) {
             throw IllegalStateException(e.cause?.message ?: "Connexion Google annulée")
+        } catch (e: TimeoutException) {
+            // CancellationSignal.cancel() est thread-safe (appelable depuis n'importe quel thread).
+            signal.cancel()
+            throw IllegalStateException("Connexion Google trop longue, réessaie")
+        } catch (e: InterruptedException) {
+            signal.cancel()
+            Thread.currentThread().interrupt()
+            throw IllegalStateException("Connexion Google interrompue, réessaie")
         }
         check(credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
             "Identifiant Google inattendu"
