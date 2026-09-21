@@ -60,7 +60,9 @@ export function ClaimSelection({ map, onDone }: Props) {
   useEffect(() => {
     map.addSource(GRID_SOURCE, { type: 'geojson', data: EMPTY });
     map.addSource(RECT_SOURCE, { type: 'geojson', data: EMPTY });
-    map.addLayer({ id: 'selection-grid', type: 'line', source: GRID_SOURCE, paint: { 'line-color': '#1f2937', 'line-width': 0.6, 'line-opacity': 0.5 } });
+    // Trait sombre bordé de blanc : un trait fin seul se confond avec les routes et courbes du Plan IGN.
+    map.addLayer({ id: 'selection-grid-casing', type: 'line', source: GRID_SOURCE, paint: { 'line-color': '#ffffff', 'line-width': 3.5, 'line-opacity': 0.8 } });
+    map.addLayer({ id: 'selection-grid', type: 'line', source: GRID_SOURCE, paint: { 'line-color': '#111827', 'line-width': 1.5, 'line-opacity': 0.9 } });
     map.addLayer({ id: 'selection-rect-fill', type: 'fill', source: RECT_SOURCE, paint: { 'fill-color': '#059669', 'fill-opacity': 0.25 } });
     map.addLayer({ id: 'selection-rect-line', type: 'line', source: RECT_SOURCE, paint: { 'line-color': '#047857', 'line-width': 2 } });
 
@@ -89,7 +91,7 @@ export function ClaimSelection({ map, onDone }: Props) {
 
     return () => {
       map.off('moveend', drawGrid);
-      for (const layer of ['selection-grid', 'selection-rect-fill', 'selection-rect-line']) if (map.getLayer(layer)) map.removeLayer(layer);
+      for (const layer of ['selection-grid-casing', 'selection-grid', 'selection-rect-fill', 'selection-rect-line']) if (map.getLayer(layer)) map.removeLayer(layer);
       for (const source of [GRID_SOURCE, RECT_SOURCE]) if (map.getSource(source)) map.removeSource(source);
     };
   }, [map]);
