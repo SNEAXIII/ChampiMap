@@ -1,8 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { AttributionControl, Map as MapLibreMap } from 'maplibre-gl';
+import { AttributionControl, Map as MapLibreMap, setWorkerUrl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { CHUNK_TILE_URL, createIgnStyle, PLAN_IGN_TILE_URL, START_CENTER, START_ZOOM } from '../map/ign';
 import { isAndroid } from '../bridge/bridge';
+
+// MapLibre 6 + bundler : sans ce worker, aucune source GeoJSON ne se charge (grille, brouillard, zones,
+// précision GPS) ; seules les tuiles raster s'affichent. `?worker&url` embarque aussi maplibre-gl-shared.mjs.
+setWorkerUrl(maplibreWorkerUrl);
 
 type Props = {
   onMapReady: (map: MapLibreMap) => void;
