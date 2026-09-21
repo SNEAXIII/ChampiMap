@@ -2,6 +2,7 @@ package fr.champimap
 
 import android.app.Activity
 import android.os.CancellationSignal
+import androidx.core.content.ContextCompat
 import androidx.credentials.CredentialManager
 import androidx.credentials.CredentialManagerCallback
 import androidx.credentials.CustomCredential
@@ -45,7 +46,7 @@ object GoogleSignIn {
                 activity,
                 request,
                 signal,
-                activity.mainExecutor,
+                ContextCompat.getMainExecutor(activity),
                 object : CredentialManagerCallback<GetCredentialResponse, GetCredentialException> {
                     override fun onResult(result: GetCredentialResponse) {
                         future.complete(result)
