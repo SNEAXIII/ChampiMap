@@ -1,17 +1,6 @@
 import type { IconType } from 'react-icons';
-import { GiBoar, GiChanterelles, GiDeerHead, GiMushroom, GiMushroomGills, GiMushrooms, GiOakLeaf, GiWaterDrop, GiWoodCabin } from 'react-icons/gi';
-import {
-  LuBinoculars,
-  LuBird,
-  LuCarFront,
-  LuFlag,
-  LuMapPin,
-  LuSprout,
-  LuStar,
-  LuTreeDeciduous,
-  LuTreePine,
-  LuTriangleAlert,
-} from 'react-icons/lu';
+import { GiChanterelles, GiMushroom, GiMushroomGills, GiMushrooms, GiOakLeaf, GiWaterDrop, GiWoodCabin } from 'react-icons/gi';
+import { LuBinoculars, LuCarFront, LuFlag, LuMapPin, LuStar, LuTriangleAlert } from 'react-icons/lu';
 
 export type WaypointIcon = { id: string; label: string; Icon: IconType; color: string };
 
@@ -22,14 +11,8 @@ export const WAYPOINT_ICONS: WaypointIcon[] = [
   { id: 'cepe', label: 'Cèpe', Icon: GiMushroom, color: '#92400e' },
   { id: 'girolle', label: 'Girolle', Icon: GiChanterelles, color: '#d97706' },
   { id: 'mushroom-spot', label: 'Coin à champis', Icon: GiMushrooms, color: '#9a3412' },
-  { id: 'pine', label: 'Sapin', Icon: LuTreePine, color: '#166534' },
-  { id: 'tree', label: 'Feuillu', Icon: LuTreeDeciduous, color: '#15803d' },
-  { id: 'sprout', label: 'Pousse', Icon: LuSprout, color: '#65a30d' },
   { id: 'leaf', label: 'Feuille', Icon: GiOakLeaf, color: '#4d7c0f' },
   { id: 'water', label: 'Eau', Icon: GiWaterDrop, color: '#0284c7' },
-  { id: 'deer', label: 'Cerf', Icon: GiDeerHead, color: '#78350f' },
-  { id: 'boar', label: 'Sanglier', Icon: GiBoar, color: '#57534e' },
-  { id: 'bird', label: 'Oiseau', Icon: LuBird, color: '#0f766e' },
   { id: 'flag', label: 'Drapeau', Icon: LuFlag, color: '#7c3aed' },
   { id: 'star', label: 'Favori', Icon: LuStar, color: '#ca8a04' },
   { id: 'cabin', label: 'Cabane', Icon: GiWoodCabin, color: '#7c2d12' },
