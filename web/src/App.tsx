@@ -261,6 +261,10 @@ export function App() {
             onClose={() => setPanel(null)}
             onNewClaim={() => {
               setPanel(null);
+              // cooperativeGestures : un seul doigt ne déclenche pas dragstart, donc rien n'interromprait
+              // le Suivi pendant le tracé du rectangle — la carte tournerait/paniquerait sous la sélection.
+              setFollowMode('free');
+              map?.easeTo({ bearing: 0 });
               setSelecting(true);
             }}
             onShow={(claim) => {
