@@ -52,7 +52,7 @@ Nouvelles migrations : `npx supabase migration new <nom>` (nom horodaté), puis 
   VITE_SUPABASE_URL=https://<ref-du-projet>.supabase.co
   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_…
   ```
-- `android/local.properties` (ignoré par git), ajouter la ligne :
+- `android/gradle.properties` (versionné, valeur publique ; `android/local.properties` peut la remplacer) :
   ```
   champimap.googleWebClientId=<Client ID Web>.apps.googleusercontent.com
   ```

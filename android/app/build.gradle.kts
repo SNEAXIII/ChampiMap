@@ -5,7 +5,8 @@ plugins {
     id("com.android.application")
 }
 
-// android/local.properties (ignoré par git) : champimap.googleWebClientId=…apps.googleusercontent.com
+// Client OAuth Web Google : android/gradle.properties (versionné, valeur publique), remplaçable par la même clé
+// dans android/local.properties (ignoré par git) pour pointer un autre projet Google.
 val localProperties = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
@@ -20,7 +21,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${localProperties.getProperty("champimap.googleWebClientId", "")}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${localProperties.getProperty("champimap.googleWebClientId") ?: providers.gradleProperty("champimap.googleWebClientId").getOrElse("")}\"")
     }
 
     buildFeatures {
