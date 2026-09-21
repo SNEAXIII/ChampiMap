@@ -117,7 +117,7 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] J1 Déconnecté, créer 2 waypoints `Sync A` et `Sync B` : dans la liste, 📱 sur chacun
 - [ ] J2 Paramètres → se connecter (choisir un compte soi-même). Sous ~5 s : « ☁️ Tous les waypoints sont sauvegardés », et la liste montre ☁️ sur les deux (première connexion : rattachement et envoi)
 - [ ] J3 Demander à l'utilisateur de vérifier dans Supabase (Table Editor → waypoints) que `Sync A` et `Sync B` existent avec son `user_id`
-- [ ] J4 Mode avion (accord donné) : renommer `Sync A` en `Sync A2` et supprimer `Sync B`. La liste affiche 📱 pour `Sync A2`. Paramètres : « 📱 1 waypoint sur l'appareil ». Tenter « Se déconnecter » → « Confirmer » : message refusant la déconnexion (1 waypoint pas encore sauvegardé)
+- [ ] J4 Mode avion (accord donné) : renommer `Sync A` en `Sync A2` et supprimer `Sync B`. La liste affiche 📱 pour `Sync A2` (et ne montre plus `Sync B`). Paramètres : « 📱 1 waypoint sur l'appareil » (compte le renommage, pas la suppression). Tenter « Se déconnecter » → « Confirmer » : message refusant la déconnexion (« 2 modifications pas encore sauvegardées » — renommage + suppression comptent ensemble)
 - [ ] J5 Désactiver le mode avion (vérifier `airplane_mode_on` = `0`). Sous ~5 s, `Sync A2` passe à ☁️. L'utilisateur vérifie dans Supabase : `Sync A2` renommé, et `deleted_at` renseigné sur `Sync B`
 - [ ] J6 Conflit : l'utilisateur modifie le `name` de `Sync A2` en `Serveur` et met `updated_at` à maintenant + 1 h dans le Table Editor. Tap « Synchroniser » : le waypoint s'appelle « Serveur » sur le téléphone
 - [ ] J7 Se déconnecter (en ligne) : la liste est vide. Se reconnecter : « Serveur » revient, et `Sync B` reste supprimé (non affiché)

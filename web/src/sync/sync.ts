@@ -17,7 +17,8 @@ type Row = {
 
 const PAGE_SIZE = 500;
 const DEBOUNCE_MS = 3000;
-const cursorKey = (userId: string) => `champi.sync.cursor.${userId}`;
+const CURSOR_PREFIX = 'champi.sync.cursor.';
+const cursorKey = (userId: string) => `${CURSOR_PREFIX}${userId}`;
 // `synced_at` est posé par le trigger serveur à l'engagement (commit) de la transaction, mais des
 // transactions concurrentes peuvent valider dans le désordre : un pull qui a déjà avancé son curseur
 // au-delà de T2 pourrait alors ignorer une ligne validée plus tard avec T1 < T2 (T1 < T2 mais commit(T1) après commit(T2)).
@@ -36,6 +37,18 @@ function setState(change: Partial<SyncState>): void {
 }
 
 export const getSyncState = (): SyncState => state;
+
+/**
+ * Supprime tous les curseurs de sync stockés (tous comptes confondus). À appeler à la déconnexion locale :
+ * sinon le curseur du compte reste en localStorage après `clearWaypoints()`, et une reconnexion (même compte
+ * ou un autre, sur cet appareil) repartirait de ce vieux curseur au lieu de récupérer tout l'historique.
+ */
+export function resetSyncCursors(): void {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(CURSOR_PREFIX)) localStorage.removeItem(key);
+  }
+}
 
 export function subscribeSyncState(listener: () => void): () => void {
   listeners.add(listener);

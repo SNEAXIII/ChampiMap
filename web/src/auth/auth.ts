@@ -1,6 +1,6 @@
 import { callNative, isAndroid } from '../bridge/bridge';
 import { supabase } from '../lib/supabase';
-import { syncNow } from '../sync/sync';
+import { resetSyncCursors, syncNow } from '../sync/sync';
 import { clearWaypoints, getAllWaypoints } from '../waypoints/waypointStore';
 
 export async function signInWithGoogle(): Promise<void> {
@@ -15,7 +15,11 @@ export async function signInWithGoogle(): Promise<void> {
   if (error) throw error;
 }
 
-/** Dernière sync, puis on vide les waypoints locaux. Refuse si des waypoints locaux n'ont pas pu partir. */
+/**
+ * Dernière sync, puis déconnexion locale et nettoyage des waypoints locaux.
+ * Refuse si des waypoints locaux n'ont pas pu partir, ou si la déconnexion locale échoue (réseau/5xx) —
+ * dans ce dernier cas la session Supabase reste active, donc on ne vide surtout pas les waypoints.
+ */
 export async function signOut(): Promise<void> {
   if (!supabase) return;
   try {
@@ -25,8 +29,11 @@ export async function signOut(): Promise<void> {
   }
   const unsent = getAllWaypoints().filter((waypoint) => waypoint.dirty).length;
   if (unsent > 0) {
-    throw new Error(`${unsent} waypoint${unsent > 1 ? 's' : ''} pas encore sauvegardé${unsent > 1 ? 's' : ''} : reconnecte-toi à Internet avant de te déconnecter.`);
+    throw new Error(`${unsent} modification${unsent > 1 ? 's' : ''} pas encore sauvegardée${unsent > 1 ? 's' : ''} : reconnecte-toi à Internet avant de te déconnecter.`);
   }
+  // scope: 'local' : révoque uniquement la session de cet appareil (pas besoin d'aller invalider les autres).
+  const { error } = await supabase.auth.signOut({ scope: 'local' });
+  if (error) throw error;
+  resetSyncCursors();
   await clearWaypoints();
-  await supabase.auth.signOut();
 }

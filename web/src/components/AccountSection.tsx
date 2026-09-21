@@ -17,7 +17,11 @@ export function AccountSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
-  const localCount = getAllWaypoints().filter((waypoint) => waypoint.dirty).length;
+  // Waypoints visibles pas encore envoyés (créés/renommés) vs suppressions pas encore envoyées : un waypoint
+  // supprimé n'est plus « sur l'appareil » pour l'utilisateur, donc les deux se comptent — et s'affichent —
+  // séparément.
+  const visibleDirtyCount = getAllWaypoints().filter((waypoint) => waypoint.dirty && waypoint.deletedAt === null).length;
+  const dirtyDeletionsCount = getAllWaypoints().filter((waypoint) => waypoint.dirty && waypoint.deletedAt !== null).length;
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -54,7 +58,11 @@ export function AccountSection() {
         <>
           <p className="text-sm">Connecté : {session.user.email}</p>
           <p className="text-sm text-gray-600">
-            {localCount === 0 ? '☁️ Tous les waypoints sont sauvegardés' : `📱 ${localCount} waypoint${localCount > 1 ? 's' : ''} sur l'appareil`}
+            {visibleDirtyCount === 0 && dirtyDeletionsCount === 0
+              ? '☁️ Tous les waypoints sont sauvegardés'
+              : visibleDirtyCount > 0
+                ? `📱 ${visibleDirtyCount} waypoint${visibleDirtyCount > 1 ? 's' : ''} sur l'appareil`
+                : `📱 ${dirtyDeletionsCount} suppression${dirtyDeletionsCount > 1 ? 's' : ''} pas encore sauvegardée${dirtyDeletionsCount > 1 ? 's' : ''}`}
           </p>
           <p className="mb-2 text-xs text-gray-500">
             {sync.syncing
