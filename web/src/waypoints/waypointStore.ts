@@ -75,7 +75,11 @@ export async function createWaypoint(name: string, latitude: number, longitude: 
 async function updateWaypoint(id: string, change: Partial<Pick<Waypoint, 'name' | 'deletedAt'>>): Promise<void> {
   const current = all.find((waypoint) => waypoint.id === id);
   if (!current) return;
-  await saveWaypoints([{ ...current, ...change, updatedAt: Date.now(), dirty: true }]);
+  // Toujours strictement croissant par rapport à la version connue : si l'horloge du téléphone est en retard
+  // (ou en retard sur la ligne serveur déjà récupérée), Date.now() seul pourrait être <= updatedAt et le
+  // trigger serveur (0001_waypoints.sql) jetterait silencieusement l'upsert.
+  const updatedAt = Math.max(Date.now(), current.updatedAt + 1);
+  await saveWaypoints([{ ...current, ...change, updatedAt, dirty: true }]);
 }
 
 export const renameWaypoint = (id: string, name: string) => updateWaypoint(id, { name });
