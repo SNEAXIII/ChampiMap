@@ -154,3 +154,10 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] M5 Provoquer « 🧭 Boussole imprécise : fais un 8 avec le téléphone » : le message est entièrement visible (pas de troncature) même à 360 dp
 - [ ] M6 Téléphone posé à plat et immobile, démarrage à froid de l'app (force-stop puis relance) : le cône de cap apparaît sans avoir à bouger le téléphone
 - [ ] M7 Cibler un waypoint, se déconnecter puis se reconnecter avec le même compte : la cible reste active (comportement attendu)
+
+## Retours de QA du 21/09 — optimisations
+- [ ] N1 Interface : plus aucun « waypoint » visible (barre du bas « Points », « Nouveau point », recherche, liste vide, Paramètres → compte)
+- [ ] N2 Nouvelle zone hors ligne, zoom ≥ 9 : la grille des cases est nettement visible (trait sombre bordé de blanc), en forêt comme en ville
+- [ ] N3 Sélectionner 1 case et noter l'estimation ; après téléchargement, la taille affichée dans la liste est du même ordre (± 50 %)
+- [ ] N4 Télécharger une zone de ~10 cases : nettement plus rapide qu'avant (≈ 5–10 s par case en 4G/Wi-Fi) ; la liste affiche « N / M images », la notification aussi
+- [ ] N5 Pendant ce téléchargement, déplacer la carte ailleurs : les tuiles à l'écran continuent de s'afficher sans blocage
