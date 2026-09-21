@@ -3,7 +3,12 @@ import { MAX_DETAIL_ZOOM } from '../map/ign';
 
 /** Une case (région) = l'emprise d'un chunk au zoom 13. Doit rester égal à ChunkMath.REGION_ZOOM. */
 export const REGION_ZOOM = 13;
-export const DEFAULT_CHUNK_BYTES = 70_000;
+/**
+ * Taille d'un chunk quand la base n'en a encore aucun à ce zoom. Mesuré sur le Plan IGN en forêt de Chaux
+ * (09/2026) : plus on zoome, moins il y a de détails par image, donc des PNG plus légers.
+ */
+const DEFAULT_CHUNK_BYTES_BY_ZOOM: Record<number, number> = { 14: 55_000, 15: 35_000, 16: 20_000, 17: 10_000 };
+const DEFAULT_CHUNK_BYTES = 70_000;
 export const GLOBAL_WARNING_BYTES = 1024 ** 3;
 
 export type RegionRect = { xMin: number; yMin: number; xMax: number; yMax: number };
@@ -63,11 +68,11 @@ export function chunkCount(rect: RegionRect): number {
   return total;
 }
 
-/** Octets estimés : moyenne réelle par zoom quand elle existe, sinon 70 KB. */
+/** Octets estimés : moyenne réelle par zoom quand elle existe, sinon la taille mesurée pour ce zoom. */
 export function estimateBytes(rect: RegionRect, averages: Record<string, number>): number {
   let total = 0;
   for (let zoom = 0; zoom <= MAX_DETAIL_ZOOM; zoom++) {
-    total += chunksAtZoom(rect, zoom) * (averages[String(zoom)] ?? DEFAULT_CHUNK_BYTES);
+    total += chunksAtZoom(rect, zoom) * (averages[String(zoom)] ?? DEFAULT_CHUNK_BYTES_BY_ZOOM[zoom] ?? DEFAULT_CHUNK_BYTES);
   }
   return total;
 }
