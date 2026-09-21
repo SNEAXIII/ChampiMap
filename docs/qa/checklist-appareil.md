@@ -161,3 +161,5 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] N3 Sélectionner 1 case et noter l'estimation ; après téléchargement, la taille affichée dans la liste est du même ordre (± 50 %)
 - [ ] N4 Télécharger une zone de ~10 cases : nettement plus rapide qu'avant (≈ 5–10 s par case en 4G/Wi-Fi) ; la liste affiche « N / M images », la notification aussi
 - [ ] N5 Pendant ce téléchargement, déplacer la carte ailleurs : les tuiles à l'écran continuent de s'afficher sans blocage
+- [ ] N6 Worker MapLibre (les couches GeoJSON ne s'affichaient jamais) : cercle de précision autour du point bleu, contour pointillé vert d'une zone complète, voile gris d'une zone en cours, brouillard hors ligne (mode avion)
+- [ ] N7 Pendant le téléchargement d'une zone, la taille affichée dans la liste augmente (plus de valeur figée jusqu'à la fin)
