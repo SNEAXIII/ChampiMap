@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AttributionControl, Map as MapLibreMap, setWorkerUrl } from 'maplibre-gl';
+import { AttributionControl, Map as MapLibreMap, ScaleControl, setWorkerUrl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { CHUNK_TILE_URL, createIgnStyle, PLAN_IGN_TILE_URL, START_CENTER, START_ZOOM } from '../map/ign';
@@ -31,6 +31,8 @@ export function MapView({ onMapReady }: Props) {
       attributionControl: false,
     });
     map.addControl(new AttributionControl({ compact: true }), 'bottom-left');
+    // Échelle à droite du ⓘ (coin bas-gauche mis en ligne dans index.css).
+    map.addControl(new ScaleControl({ maxWidth: 90, unit: 'metric' }), 'bottom-left');
     // Mention IGN minime : repliée dès le départ.
     map.once('load', () => {
       const attribution = container.querySelector('.maplibregl-ctrl-attrib');

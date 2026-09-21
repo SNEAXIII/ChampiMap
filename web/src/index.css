@@ -24,3 +24,11 @@ textarea {
 .maplibregl-cooperative-gesture-screen {
   display: none !important;
 }
+
+/* Coin bas-gauche : ⓘ d'attribution dans le coin puis échelle à sa droite, côte à côte plutôt qu'empilés.
+   row-reverse : MapLibre insère chaque nouveau contrôle en tête du coin. */
+.maplibregl-ctrl-bottom-left {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-end;
+}
