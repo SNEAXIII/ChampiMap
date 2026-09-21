@@ -11,11 +11,13 @@ object ChunkSource {
     private const val CONNECT_TIMEOUT_MS = 5_000
     private const val READ_TIMEOUT_MS = 8_000
 
-    // Plafond global de requêtes IGN simultanées (contrainte du plan), réparti en deux moitiés pour que les
-    // téléchargements de fond (ChunkDownloader, pré-téléchargement puis claims) ne puissent jamais affamer les
-    // tuiles à l'écran (ChunkPathHandler, threads WebView non bornés) : 2 + 2 = 4 requêtes IGN au total.
+    // Plafonds séparés pour que les téléchargements de fond (ChunkDownloader, pré-téléchargement puis claims) ne
+    // puissent jamais affamer les tuiles à l'écran (ChunkPathHandler, threads WebView non bornés) : 2 + 8 = 10
+    // requêtes IGN au total. Le WMTS de la Géoplateforme n'a pas de limite de débit ; mesuré, le débit croît
+    // linéairement jusqu'à 8 requêtes simultanées (≈ 50 chunks/s).
     private val interactiveLimit = Semaphore(2)
-    private val backgroundLimit = Semaphore(2)
+    const val BACKGROUND_PARALLEL = 8
+    private val backgroundLimit = Semaphore(BACKGROUND_PARALLEL)
 
     private fun url(id: ChunkId) =
         "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0" +
@@ -36,12 +38,14 @@ object ChunkSource {
                 if (connection.responseCode == 200 && connection.contentType?.startsWith("image/") == true) {
                     connection.inputStream.use { it.readBytes() }
                 } else {
+                    // Corps d'erreur lu jusqu'au bout : la connexion peut alors resservir (keep-alive).
+                    connection.errorStream?.use { it.readBytes() }
                     null
                 }
             } catch (e: IOException) {
-                null
-            } finally {
+                // Connexion dans un état inconnu : on la ferme plutôt que de la remettre dans le pool.
                 connection?.disconnect()
+                null
             }
         } finally {
             limit.release()

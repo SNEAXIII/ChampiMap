@@ -10,15 +10,15 @@ import java.util.concurrent.atomic.AtomicInteger
 data class DownloadResult(val failures: Int, val cancelled: Boolean)
 
 object ChunkDownloader {
-    /** Moitié du plafond IGN (ChunkSource.backgroundLimit) : ne dispute pas les threads pour rien au-delà. */
-    const val PARALLEL = 2
+    /** Plafond de fond d'IGN (ChunkSource.backgroundLimit) : au-delà, les threads attendraient le sémaphore. */
+    const val PARALLEL = ChunkSource.BACKGROUND_PARALLEL
     private const val BATCH = 64
     private const val TAG = "ChunkDownloader"
 
     /**
-     * Télécharge les chunks absents de la base, 2 à la fois. S'arrête entre deux lots, et aussi juste avant
+     * Télécharge les chunks absents de la base, PARALLEL à la fois. S'arrête entre deux lots, et aussi juste avant
      * chaque téléchargement réseau à l'intérieur d'un lot, si `shouldContinue()` devient faux (résultat
-     * `cancelled = true`) : un lot de 64 peut mettre plusieurs secondes, le réseau ou le service peuvent partir
+     * `cancelled = true`) : un lot peut mettre plusieurs secondes, le réseau ou le service peuvent partir
      * avant la fin. Un chunk ainsi sauté ne compte ni comme réussi ni comme échoué. `onChunk(ok)` est appelé
      * pour chaque chunk traité (déjà présent ou téléchargé = ok).
      */
