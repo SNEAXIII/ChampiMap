@@ -38,6 +38,9 @@ export type Sheet =
   | { kind: 'position' }
   | null;
 
+/** Zoom appliqué par le bouton de localisation (≈ 0,8 m par px en France : ≈ 300 m de large sur un téléphone). */
+const LOCATE_ZOOM = 16;
+
 export type Panel = 'waypoints' | 'claims' | 'settings' | null;
 
 export function App() {
@@ -132,7 +135,7 @@ export function App() {
     if (!map || !fix || !centerOnNextFix) return;
     setCenterOnNextFix(false);
     setFollowMode('centered');
-    map.easeTo({ center: [fix.longitude, fix.latitude], bearing: 0 });
+    map.easeTo({ center: [fix.longitude, fix.latitude], bearing: 0, zoom: LOCATE_ZOOM });
   }, [map, fix, centerOnNextFix]);
 
   // Suivi : la carte suit la position et tourne selon le cap.
@@ -174,16 +177,17 @@ export function App() {
       return;
     }
     const center: [number, number] = [fix.longitude, fix.latitude];
+    // Chaque appui ramène aussi au même zoom, quel que soit le zoom de départ.
     if (followMode === 'free') {
       setFollowMode('centered');
-      map.easeTo({ center, bearing: 0 });
+      map.easeTo({ center, bearing: 0, zoom: LOCATE_ZOOM });
     } else if (followMode === 'centered') {
       setFollowMode('follow');
-      map.easeTo({ center });
+      map.easeTo({ center, zoom: LOCATE_ZOOM });
     } else {
       // Centré = nord en haut.
       setFollowMode('centered');
-      map.easeTo({ center, bearing: 0 });
+      map.easeTo({ center, bearing: 0, zoom: LOCATE_ZOOM });
     }
   };
 
