@@ -11,7 +11,7 @@ export function WaypointGlyph({ icon, size = 32 }: Props) {
   const { Icon, color } = waypointIcon(icon);
   return (
     <span className="inline-flex shrink-0 items-center justify-center rounded-full text-white" style={{ width: size, height: size, backgroundColor: color }}>
-      <Icon size={Math.round(size * 0.6)} aria-hidden />
+      <Icon size={Math.round(size * 0.58)} aria-hidden />
     </span>
   );
 }

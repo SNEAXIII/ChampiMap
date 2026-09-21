@@ -15,7 +15,7 @@ type Entry = { element: HTMLButtonElement; marker: Marker | null };
 /** Goutte de la couleur de l'icône, pointe en bas (ancre du marqueur), icône blanche dedans. */
 function Pin({ waypoint, highlighted }: { waypoint: Waypoint; highlighted: boolean }) {
   const { Icon, color } = waypointIcon(waypoint.icon);
-  const side = highlighted ? 34 : 26; // côté du carré tourné de 45° qui forme la goutte
+  const side = highlighted ? 38 : 30; // côté du carré tourné de 45° qui forme la goutte
   const box = Math.round(side * Math.SQRT2);
   const offset = (box - side) / 2;
   return (
@@ -25,7 +25,8 @@ function Pin({ waypoint, highlighted }: { waypoint: Waypoint; highlighted: boole
           className={`absolute flex items-center justify-center rounded-full rounded-br-none border-2 border-white shadow-md ${highlighted ? 'ring-4 ring-blue-400/60' : ''}`}
           style={{ left: offset, top: offset, width: side, height: side, backgroundColor: color, transform: 'rotate(45deg)' }}
         >
-          <Icon size={Math.round(side * 0.6)} color="white" style={{ transform: 'rotate(-45deg)' }} aria-hidden />
+          {/* Goutte ≈ cercle intérieur de (side - 4) px (bordure 2 px) : le carré qui y tient fait ≈ 0,7 × ce diamètre. */}
+          <Icon size={Math.floor((side - 4) * 0.68)} color="white" style={{ transform: 'rotate(-45deg)' }} aria-hidden />
         </span>
       </span>
       <span
