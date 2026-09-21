@@ -5,8 +5,19 @@ Ces étapes se font dans des consoles web, par toi. Compte 20 minutes.
 ## 1. Projet Supabase
 
 1. Sur https://supabase.com/dashboard, crée un projet `champi-map` (région : Paris / `eu-west-3`).
-2. **SQL Editor** → nouveau script → colle le contenu de `supabase/migrations/0001_waypoints.sql` → **Run**.
-3. **Project Settings → API Keys** : note l'URL du projet et la clé **publishable** (`sb_publishable_…`).
+2. **Project Settings → General** : note la **Reference ID** du projet (`<ref-du-projet>`).
+3. Applique les migrations de `supabase/migrations/` depuis la racine du repo :
+   ```bash
+   npx supabase login                               # Entrée → connexion dans le navigateur
+   npx supabase link --project-ref <ref-du-projet>  # demande le mot de passe de la base
+   npx supabase db push                             # applique les migrations absentes
+   ```
+   Vérifie dans **Table Editor** que la table `waypoints` existe.
+   Ne colle pas le SQL à la main dans le **SQL Editor** : la migration ne serait pas inscrite dans l'historique et `db push` la rejouerait (erreur « relation already exists »). Si c'est déjà fait, marque-la comme appliquée :
+   `npx supabase migration repair --status applied 20260915000000`.
+4. **Project Settings → API Keys** : note l'URL du projet et la clé **publishable** (`sb_publishable_…`).
+
+Nouvelles migrations : `npx supabase migration new <nom>` (nom horodaté), puis `npx supabase db push`.
 
 ## 2. Clients OAuth Google
 

@@ -77,7 +77,7 @@ async function updateWaypoint(id: string, change: Partial<Pick<Waypoint, 'name' 
   if (!current) return;
   // Toujours strictement croissant par rapport à la version connue : si l'horloge du téléphone est en retard
   // (ou en retard sur la ligne serveur déjà récupérée), Date.now() seul pourrait être <= updatedAt et le
-  // trigger serveur (0001_waypoints.sql) jetterait silencieusement l'upsert.
+  // trigger serveur (20260915000000_waypoints.sql) jetterait silencieusement l'upsert.
   const updatedAt = Math.max(Date.now(), current.updatedAt + 1);
   await saveWaypoints([{ ...current, ...change, updatedAt, dirty: true }]);
 }
