@@ -145,3 +145,12 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] L6 ✕ sur le bandeau : bandeau et flèche disparaissent. Hors Suivi, le flag KEEP_SCREEN_ON disparaît
 - [ ] L7 Cibler un waypoint, relancer l'app : la cible est toujours active. Supprimer ce waypoint : la cible disparaît
 - [ ] L8 Cible active : le « ⓘ » d'attribution IGN (bas à gauche) reste visible sous le bandeau et reste tapable
+
+### Revue finale
+- [ ] M1 Suivi ◉ actif : appui long sur la carte (viseur) en gardant le doigt immobile : la carte reste fixe pendant tout l'appui, et le point créé au relâchement correspond bien au réticule affiché
+- [ ] M2 En Suivi, ouvrir « Zones hors ligne » → [+ Nouvelle zone hors ligne] : le Suivi est quitté (bouton ◎), la grille de sélection est nord en haut et ne bouge pas pendant le tracé du rectangle
+- [ ] M3 Hors ligne + Suivi en marchant (ou en simulant un déplacement) : le brouillard se met à jour au fil de la marche, pas seulement à l'arrêt
+- [ ] M4 Feuille d'un waypoint (WaypointSheet) à 360 dp de large : les 3 boutons sont lisibles, pas de texte coupé
+- [ ] M5 Provoquer « 🧭 Boussole imprécise : fais un 8 avec le téléphone » : le message est entièrement visible (pas de troncature) même à 360 dp
+- [ ] M6 Téléphone posé à plat et immobile, démarrage à froid de l'app (force-stop puis relance) : le cône de cap apparaît sans avoir à bouger le téléphone
+- [ ] M7 Cibler un waypoint, se déconnecter puis se reconnecter avec le même compte : la cible reste active (comportement attendu)
