@@ -18,14 +18,8 @@
 | `cepe` | Cèpe | `GiMushroom` | `#92400e` |
 | `girolle` | Girolle | `GiChanterelles` | `#d97706` |
 | `mushroom-spot` | Coin à champis | `GiMushrooms` | `#9a3412` |
-| `pine` | Sapin | `LuTreePine` | `#166534` |
-| `tree` | Feuillu | `LuTreeDeciduous` | `#15803d` |
-| `sprout` | Pousse | `LuSprout` | `#65a30d` |
 | `leaf` | Feuille | `GiOakLeaf` | `#4d7c0f` |
 | `water` | Eau | `GiWaterDrop` | `#0284c7` |
-| `deer` | Cerf | `GiDeerHead` | `#78350f` |
-| `boar` | Sanglier | `GiBoar` | `#57534e` |
-| `bird` | Oiseau | `LuBird` | `#0f766e` |
 | `flag` | Drapeau | `LuFlag` | `#7c3aed` |
 | `star` | Favori | `LuStar` | `#ca8a04` |
 | `cabin` | Cabane | `GiWoodCabin` | `#7c2d12` |
