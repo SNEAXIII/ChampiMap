@@ -3,7 +3,7 @@ import { AttributionControl, Map as MapLibreMap, ScaleControl, setWorkerUrl } fr
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { CHUNK_TILE_URL, createIgnStyle, PLAN_IGN_TILE_URL, START_CENTER, START_ZOOM } from '../map/ign';
-import { isAndroid } from '../bridge/bridge';
+import { isAndroid, onNative } from '../bridge/bridge';
 
 // MapLibre 6 + bundler : sans ce worker, aucune source GeoJSON ne se charge (grille, brouillard, zones,
 // précision GPS) ; seules les tuiles raster s'affichent. `?worker&url` embarque aussi maplibre-gl-shared.mjs.
@@ -39,9 +39,20 @@ export function MapView({ onMapReady }: Props) {
       attribution?.classList.remove('maplibregl-compact-show');
       attribution?.removeAttribute('open');
     });
+    // Kotlin répond 404 à un chunk absent du cache sans attendre l'IGN, puis signale son arrivée :
+    // on recharge alors ces tuiles (en attendant, MapLibre agrandit le zoom inférieur).
+    const offChunksReady = onNative('chunksReady', (ids) => {
+      map.refreshTiles(
+        'plan-ign',
+        ids.map(([z, x, y]) => ({ z, x, y })),
+      );
+    });
     onMapReady(map);
     // StrictMode monte l'effet deux fois en dev : on détruit proprement la carte.
-    return () => map.remove();
+    return () => {
+      offChunksReady();
+      map.remove();
+    };
   }, [onMapReady]);
 
   return <div ref={containerRef} className="h-full w-full" />;

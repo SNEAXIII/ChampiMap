@@ -83,10 +83,11 @@ class MainActivity : ComponentActivity() {
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
         // Release : sert assets/web/ sur https://appassets.androidplatform.net/assets/web/.
+        val chunkHandler = ChunkPathHandler(this)
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
-            // Chunks de carte : cache SQLite, sinon IGN (ADR 0001).
-            .addPathHandler("/chunks/", ChunkPathHandler(this))
+            // Chunks de carte : cache SQLite, sinon IGN en arrière-plan (ADR 0001).
+            .addPathHandler("/chunks/", chunkHandler)
             .build()
 
         webView = WebView(this).apply {
@@ -116,6 +117,10 @@ class MainActivity : ComponentActivity() {
         }
 
         bridge = NativeBridge(this, webView)
+        // Chunks téléchargés pour l'écran après un premier 404 : la page recharge ces tuiles.
+        chunkHandler.onChunksReady = { ids ->
+            bridge.emit("chunksReady", JSONArray(ids.map { JSONArray().put(it.z).put(it.x).put(it.y) }))
+        }
         headingSensor = HeadingSensor(this) { heading, tilted, needsCalibration ->
             bridge.emit(
                 "heading",

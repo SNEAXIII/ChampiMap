@@ -6,9 +6,18 @@ import android.util.Log
 import android.webkit.WebResourceResponse
 import androidx.webkit.WebViewAssetLoader
 import java.io.ByteArrayInputStream
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingDeque
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 /**
- * Sert `/chunks/{z}/{x}/{y}` : depuis le cache, sinon depuis l'IGN si le réseau est là (et on garde le chunk).
+ * Sert `/chunks/{z}/{x}/{y}` depuis le cache. Un chunk absent n'est jamais attendu ici : la réponse est un 404
+ * immédiat, le chunk est téléchargé en arrière-plan puis signalé par [onChunksReady] (la page recharge alors ces
+ * tuiles). Les threads de la WebView restent ainsi libres pour les chunks en cache : mesuré, un téléchargement
+ * IGN (≈ 230 ms) bloquant un de ces threads faisait attendre des chunks en cache (≈ 6 ms) jusqu'à ≈ 5 s.
+ *
  * Appelé sur un thread de la WebView, jamais le thread UI : `WebViewAssetLoader` ne rattrape aucune exception
  * levée ici, une exception non gérée ferait donc planter l'app (ex. `SQLiteFullException` disque plein).
  */
@@ -16,6 +25,67 @@ class ChunkPathHandler(context: Context) : WebViewAssetLoader.PathHandler {
 
     private val appContext = context.applicationContext
     private val store = ChunkStore.get(appContext)
+
+    /** Chunks tout juste téléchargés pour l'écran, par lots ; appelé depuis un thread de fond. */
+    @Volatile
+    var onChunksReady: (List<ChunkId>) -> Unit = {}
+
+    /** Chunks demandés et pas encore téléchargés (évite de lancer deux fois le même). */
+    private val pending: MutableSet<ChunkId> = ConcurrentHashMap.newKeySet()
+
+    // Pile (LIFO) bornée : pendant un zoom ou un glissé, les derniers chunks demandés sont ceux de la vue courante ;
+    // les plus anciens, souvent déjà hors de l'écran, sont abandonnés quand la pile déborde.
+    private val queue = object : LinkedBlockingDeque<Runnable>(MAX_QUEUED) {
+        override fun offer(e: Runnable): Boolean {
+            while (!offerFirst(e)) {
+                (pollLast() as? Download)?.let { pending.remove(it.id) }
+            }
+            return true
+        }
+
+        override fun take(): Runnable = takeFirst()
+
+        override fun poll(timeout: Long, unit: TimeUnit): Runnable? = pollFirst(timeout, unit)
+    }
+
+    private val downloads = ThreadPoolExecutor(PARALLEL, PARALLEL, 30, TimeUnit.SECONDS, queue).apply {
+        allowCoreThreadTimeOut(true)
+    }
+
+    private inner class Download(val id: ChunkId) : Runnable {
+        override fun run() {
+            try {
+                when (val fetched = ChunkSource.fetch(id)) {
+                    is Fetch.Data -> {
+                        store.write(id, fetched.bytes)
+                        notifyReady(id)
+                    }
+                    Fetch.Missing -> if (missing.size < MAX_MISSING) missing.add(id)
+                    Fetch.Failed -> Unit
+                }
+            } catch (e: Exception) {
+                // Ex. SQLiteFullException (disque plein) : le chunk sera redemandé au prochain affichage.
+                Log.w(TAG, "Téléchargement pour l'écran en échec pour $id", e)
+            } finally {
+                pending.remove(id)
+            }
+        }
+    }
+
+    // Regroupe les notifications : un zoom peut terminer des dizaines de chunks par seconde.
+    private val ready = ArrayList<ChunkId>()
+    private val notifier = Executors.newSingleThreadScheduledExecutor()
+
+    private fun notifyReady(id: ChunkId) {
+        synchronized(ready) {
+            ready += id
+            if (ready.size > 1) return
+        }
+        notifier.schedule({
+            val batch = synchronized(ready) { ready.toList().also { ready.clear() } }
+            onChunksReady(batch)
+        }, NOTIFY_BATCH_MS, TimeUnit.MILLISECONDS)
+    }
 
     override fun handle(path: String): WebResourceResponse {
         try {
@@ -27,22 +97,11 @@ class ChunkPathHandler(context: Context) : WebViewAssetLoader.PathHandler {
                 Log.w(TAG, "Lecture du cache impossible pour $id, on retélécharge", e)
                 null
             }
+            if (cached != null) return response(200, "OK", cached)
 
-            val data = cached ?: if (Network.isOnline(appContext)) {
-                ChunkSource.download(id)?.also { downloaded ->
-                    // Écriture séparée : si elle échoue (ex. disque plein), la tuile déjà téléchargée
-                    // est quand même servie, elle ne sera simplement pas gardée en cache.
-                    try {
-                        store.write(id, downloaded)
-                    } catch (e: SQLiteException) {
-                        Log.w(TAG, "Écriture du cache impossible pour $id (disque plein ?)", e)
-                    }
-                }
-            } else {
-                null
-            }
-
-            return if (data != null) response(200, "OK", data) else response(404, "Not Found", EMPTY)
+            // Hors couverture IGN (404) déjà constaté, ou pas de réseau : rien à télécharger.
+            if (id !in missing && Network.isOnline(appContext) && pending.add(id)) downloads.execute(Download(id))
+            return response(404, "Not Found", EMPTY)
         } catch (e: Exception) {
             Log.w(TAG, "Échec inattendu pour /chunks/$path", e)
             return response(404, "Not Found", EMPTY)
@@ -74,5 +133,14 @@ class ChunkPathHandler(context: Context) : WebViewAssetLoader.PathHandler {
     private companion object {
         const val TAG = "ChunkPathHandler"
         val EMPTY = ByteArray(0)
+
+        /** Téléchargements simultanés pour l'écran (≤ ChunkSource.interactiveLimit, sinon ils attendraient). */
+        const val PARALLEL = 8
+        const val MAX_QUEUED = 256
+        const val NOTIFY_BATCH_MS = 100L
+
+        /** Chunks sans image chez l'IGN (404 : mer, étranger), pour la durée du processus. Borné par sécurité. */
+        val missing: MutableSet<ChunkId> = ConcurrentHashMap.newKeySet()
+        const val MAX_MISSING = 20_000
     }
 }

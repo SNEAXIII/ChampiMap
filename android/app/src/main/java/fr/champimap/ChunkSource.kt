@@ -25,10 +25,11 @@ object ChunkSource {
     private const val READ_TIMEOUT_MS = 8_000
 
     // Plafonds séparés pour que les téléchargements de fond (ChunkDownloader, pré-téléchargement puis claims) ne
-    // puissent jamais affamer les tuiles à l'écran (ChunkPathHandler, threads WebView non bornés) : 2 + 8 = 10
+    // puissent jamais affamer les tuiles à l'écran (ChunkPathHandler, threads WebView non bornés) : 8 + 8 = 16
     // requêtes IGN au total. Le WMTS de la Géoplateforme n'a pas de limite de débit ; mesuré, le débit croît
-    // linéairement jusqu'à 8 requêtes simultanées (≈ 50 chunks/s).
-    private val interactiveLimit = Semaphore(2)
+    // linéairement jusqu'à 8 requêtes simultanées (≈ 50 chunks/s). À l'écran, 2 ne suffisaient pas : un zoom
+    // demande une vingtaine de chunks par niveau traversé, et la carte restait floue plusieurs secondes.
+    private val interactiveLimit = Semaphore(8)
     const val BACKGROUND_PARALLEL = 8
     private val backgroundLimit = Semaphore(BACKGROUND_PARALLEL)
 

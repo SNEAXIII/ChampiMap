@@ -47,6 +47,8 @@ export type BridgeEvents = {
   claimProgress: ClaimProgress;
   claimsChanged: null;
   heading: Heading;
+  /** Chunks [z, x, y] téléchargés après avoir été servis en 404 : tuiles à recharger. */
+  chunksReady: [number, number, number][];
 };
 
 type NativePort = {
