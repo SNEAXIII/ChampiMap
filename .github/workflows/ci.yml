@@ -93,8 +93,12 @@ jobs:
           java-version: '21'
           cache: gradle
 
+      # packages : le défaut (« tools platform-tools ») échoue, le paquet « tools » n'existe plus dans le SDK.
+      # Licences acceptées par l'action ; Gradle télécharge ensuite la plateforme et les build-tools requis.
       - name: Android SDK (cmdline-tools + licences)
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       # La release est signée avec la clé debug (signingConfigs.debug = ~/.android/debug.keystore) :
       # la même que sur le PC, sinon l'APK ne s'installe pas par-dessus l'app existante et la
