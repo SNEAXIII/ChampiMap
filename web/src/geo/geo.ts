@@ -43,3 +43,20 @@ export function bearingDegrees(from: LatLon, to: LatLon): number {
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
+
+// Recul minimal pour calculer une direction : en dessous, le bruit GPS (5–10 m, plus sous les arbres) domine.
+const WALK_MIN_METERS = 15;
+
+/**
+ * Direction de marche : relèvement depuis le point le plus récent situé assez loin derrière la dernière
+ * position (au moins 15 m et au moins la précision annoncée). null si on n'a pas assez bougé.
+ */
+export function walkingHeading(fixes: (LatLon & { accuracy: number | null })[]): number | null {
+  const last = fixes.at(-1);
+  if (!last) return null;
+  const minMeters = Math.max(WALK_MIN_METERS, last.accuracy ?? 0);
+  for (let i = fixes.length - 2; i >= 0; i--) {
+    if (distanceMeters(fixes[i], last) >= minMeters) return bearingDegrees(fixes[i], last);
+  }
+  return null;
+}

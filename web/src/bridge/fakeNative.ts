@@ -16,9 +16,23 @@ const handlers: Record<string, FakeHandler> = {
   setBackEnabled: () => null,
   setKeepScreenOn: () => null,
   getStorageStats: () => ({ cacheBytes: 0, cacheTargetBytes: 500 * 1024 * 1024, claimBytes: 0 }),
-  getSettings: () => ({ prefetchOnMobileData: localStorage.getItem('prefetchOnMobileData') === 'true' }),
+  getSettings: () => ({
+    prefetchOnMobileData: localStorage.getItem('prefetchOnMobileData') === 'true',
+    gpsIntervalSeconds: Number(localStorage.getItem('gpsIntervalSeconds') ?? 5),
+    cacheLimitMb: Number(localStorage.getItem('cacheLimitMb') ?? 500),
+  }),
   setPrefetchOnMobileData: (params) => {
     localStorage.setItem('prefetchOnMobileData', String(params.on === true));
+    return null;
+  },
+  // Sans effet sur le GPS du navigateur : seulement mémorisé pour le curseur.
+  setGpsInterval: (params) => {
+    localStorage.setItem('gpsIntervalSeconds', String(params.seconds));
+    return null;
+  },
+  clearCache: () => null,
+  setCacheLimit: (params) => {
+    localStorage.setItem('cacheLimitMb', String(params.mb));
     return null;
   },
   // Navigateur du PC : pas de téléchargement, une zone est « complète » dès sa création.
@@ -76,20 +90,6 @@ export function createFakeNative(receive: Receive): { postMessage(message: strin
   // Échap joue le rôle du bouton retour Android.
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') emitFake('back', null);
-  });
-  // Cap simulé : orientation absolue du navigateur si disponible, sinon touches [ et ] (±10°).
-  let fakeHeading = 0;
-  const emitHeading = () => emitFake('heading', { heading: fakeHeading, tilted: false, needsCalibration: false });
-  window.addEventListener('deviceorientationabsolute', (event) => {
-    const alpha = (event as DeviceOrientationEvent).alpha;
-    if (alpha === null) return;
-    fakeHeading = (360 - alpha) % 360;
-    emitHeading();
-  });
-  window.addEventListener('keydown', (event) => {
-    if (event.key !== '[' && event.key !== ']') return;
-    fakeHeading = (fakeHeading + (event.key === ']' ? 10 : 350)) % 360;
-    emitHeading();
   });
   return {
     postMessage(message: string) {

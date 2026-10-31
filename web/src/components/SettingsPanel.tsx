@@ -12,6 +12,8 @@ export function SettingsPanel({ onClose }: Props) {
   const [stats, setStats] = useState<StorageStats | null>(null);
   const [statsUnavailable, setStatsUnavailable] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     const fetchStats = () =>
@@ -45,6 +47,32 @@ export function SettingsPanel({ onClose }: Props) {
     }
   };
 
+  const changeGpsInterval = (seconds: number) => {
+    setSettings((s) => s && { ...s, gpsIntervalSeconds: seconds });
+    callNative('setGpsInterval', { seconds }).catch(console.warn);
+  };
+
+  const changeCacheLimit = (mb: number) => {
+    setSettings((s) => s && { ...s, cacheLimitMb: mb });
+    callNative('setCacheLimit', { mb }).catch(console.warn);
+  };
+
+  const clearCache = async () => {
+    if (!confirmClear) {
+      setConfirmClear(true);
+      return;
+    }
+    setClearing(true);
+    try {
+      await callNative('clearCache', {});
+      setStats(await callNative('getStorageStats', {}));
+    } catch (error) {
+      console.warn(error);
+    }
+    setClearing(false);
+    setConfirmClear(false);
+  };
+
   return (
     <section className="absolute inset-0 z-30 flex flex-col bg-white">
       <header className="flex items-center justify-between border-b border-gray-200 p-3">
@@ -69,6 +97,31 @@ export function SettingsPanel({ onClose }: Props) {
           ) : (
             <p className="text-gray-500">Calcul…</p>
           )}
+          <label className="mt-4 block">
+            <span>Cartes vues récemment : {formatBytes((settings?.cacheLimitMb ?? 500) * 1024 * 1024)} max</span>
+            <input
+              type="range"
+              min={100}
+              max={1000}
+              step={100}
+              className="mt-2 block w-full"
+              value={settings?.cacheLimitMb ?? 500}
+              disabled={!settings}
+              onChange={(event) => changeCacheLimit(Number(event.target.value))}
+            />
+            <span className="block text-sm text-gray-500">
+              Au-delà, les cartes vues il y a le plus longtemps sont effacées. Les zones hors ligne ne sont jamais
+              effacées.
+            </span>
+          </label>
+          <button
+            type="button"
+            disabled={clearing}
+            onClick={clearCache}
+            className={`mt-4 rounded-lg px-3 py-2 font-medium disabled:opacity-60 ${confirmClear ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700'}`}
+          >
+            {clearing ? 'Nettoyage…' : confirmClear ? 'Confirmer : vider les cartes vues récemment' : 'Vider les cartes vues récemment'}
+          </button>
         </section>
         <section>
           <h3 className="mb-2 text-sm font-semibold text-gray-500 uppercase">Autour de moi</h3>
@@ -86,6 +139,23 @@ export function SettingsPanel({ onClose }: Props) {
                 En Wi-Fi, c'est automatique quand la position est suivie. Compter 100 à 250 Mo à chaque nouveau
                 secteur.
               </span>
+            </span>
+          </label>
+          <label className="mt-4 block">
+            <span>Position GPS toutes les {settings?.gpsIntervalSeconds ?? 5} s</span>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              step={1}
+              className="mt-2 block w-full"
+              value={settings?.gpsIntervalSeconds ?? 5}
+              disabled={!settings}
+              onChange={(event) => changeGpsInterval(Number(event.target.value))}
+            />
+            <span className="block text-sm text-gray-500">
+              Plus court : direction de marche plus réactive, mais batterie plus sollicitée. Seulement app à
+              l'écran (30 s en arrière-plan).
             </span>
           </label>
         </section>

@@ -45,7 +45,7 @@ export function PositionLayer({ map, fix, heading, stale, onSelect }: Props) {
     element.className = 'relative block h-12 w-12';
     element.innerHTML =
       // Cône d'orientation : pointe vers le haut de l'élément, tourné par MapLibre selon le cap.
-      '<span data-cone class="absolute top-0 left-1/2 hidden h-0 w-0 -translate-x-1/2 border-x-[9px] border-b-[18px] border-x-transparent border-b-blue-600/70"></span>' +
+      '<span data-cone class="absolute top-0 left-1/2 hidden h-0 w-0 -translate-x-1/2 border-x-[9px] border-b-[18px] border-x-transparent border-b-red-600/80"></span>' +
       '<span class="absolute top-1/2 left-1/2 block h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white bg-blue-600 shadow-[0_0_0_3px_rgba(37,99,235,0.3)]"></span>';
     element.addEventListener('click', (event) => {
       event.stopPropagation();

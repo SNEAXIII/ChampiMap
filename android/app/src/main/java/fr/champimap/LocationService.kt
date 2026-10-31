@@ -27,7 +27,7 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 
 /**
- * Garde le GPS actif, app visible ou non : haute précision, toutes les 5 s à l'écran, 30 s sinon.
+ * Garde le GPS actif, app visible ou non : haute précision, toutes les 1 à 10 s à l'écran (réglage), 30 s sinon.
  * S'arrête quand l'app est balayée des récents ou via « Stop » dans la notification.
  */
 class LocationService : Service() {
@@ -119,7 +119,7 @@ class LocationService : Service() {
 
     @SuppressLint("MissingPermission")
     private fun requestUpdates() {
-        val intervalMs = if (LocationHub.appVisible) VISIBLE_INTERVAL_MS else BACKGROUND_INTERVAL_MS
+        val intervalMs = if (LocationHub.appVisible) AppSettings.gpsIntervalSeconds(this) * 1000L else BACKGROUND_INTERVAL_MS
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
             .setMinUpdateIntervalMillis(intervalMs)
             .build()
@@ -187,7 +187,6 @@ class LocationService : Service() {
         private const val TAG = "LocationService"
         private const val CHANNEL_ID = "location"
         private const val NOTIFICATION_ID = 1
-        private const val VISIBLE_INTERVAL_MS = 5_000L
         private const val BACKGROUND_INTERVAL_MS = 30_000L
 
         fun hasLocationPermission(context: Context): Boolean =

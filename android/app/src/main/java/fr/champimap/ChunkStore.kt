@@ -26,7 +26,7 @@ data class Claim(
 }
 
 /** Base SQLite unique : chunks + claims (ADR 0001). « Claimé » est calculé, jamais stocké par chunk. */
-class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
+class ChunkStore private constructor(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
 
     private val writesSinceTrimCheck = AtomicInteger()
 
@@ -138,11 +138,12 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
 
     fun cacheBytes(): Long = totalBytes() - claimBytes()
 
-    /** Le cache vise 500 MB, et moins si les claims poussent le total au-delà de 1 GB. */
+    /** Le cache vise la limite réglée (500 Mo par défaut), et moins si les claims poussent le total au-delà de 1 Go. */
     fun cacheTargetBytes(): Long = cacheTargetBytes(claimBytes())
 
     /** Même formule que ci-dessus mais à partir d'un claimBytes() déjà calculé (évite de refaire la jointure). */
-    fun cacheTargetBytes(claimBytes: Long): Long = minOf(CACHE_TARGET_BYTES, maxOf(0L, GLOBAL_LIMIT_BYTES - claimBytes))
+    fun cacheTargetBytes(claimBytes: Long): Long =
+        minOf(AppSettings.cacheLimitMb(context) * 1024L * 1024, maxOf(0L, GLOBAL_LIMIT_BYTES - claimBytes))
 
     /** Supprime les chunks non claimés les plus anciennement vus jusqu'à repasser sous 95 % de la cible. */
     @Synchronized
@@ -182,6 +183,13 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
         if (deletedAny) {
             writableDatabase.rawQuery("PRAGMA incremental_vacuum", null).use { while (it.moveToNext()) { } }
         }
+    }
+
+    /** Vide tout le cache (chunks hors zones hors ligne) : ils seront retéléchargés à la demande. */
+    @Synchronized
+    fun clearCache() {
+        writableDatabase.execSQL("DELETE FROM chunks WHERE NOT EXISTS (SELECT 1 FROM claims c WHERE ${covers("c")})")
+        writableDatabase.rawQuery("PRAGMA incremental_vacuum", null).use { while (it.moveToNext()) { } }
     }
 
     fun averageChunkBytesByZoom(): Map<Int, Long> {
@@ -294,7 +302,6 @@ class ChunkStore private constructor(context: Context) : SQLiteOpenHelper(contex
     private fun ChunkId.args(): Array<String> = arrayOf(z.toString(), x.toString(), y.toString())
 
     companion object {
-        const val CACHE_TARGET_BYTES = 500L * 1024 * 1024
         const val GLOBAL_LIMIT_BYTES = 1024L * 1024 * 1024
         private const val TAG = "ChunkStore"
         private const val DB_NAME = "chunks.db"

@@ -35,7 +35,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private lateinit var bridge: NativeBridge
     private var locationPermissionDenied = false
-    private lateinit var headingSensor: HeadingSensor
 
     // StrictMode (debug) invoque effects deux fois : évite un double permissionLauncher.launch()
     // dont le second retour (map vide) serait pris pour un refus.
@@ -121,12 +120,6 @@ class MainActivity : ComponentActivity() {
         chunkHandler.onChunksReady = { ids ->
             bridge.emit("chunksReady", JSONArray(ids.map { JSONArray().put(it.z).put(it.x).put(it.y) }))
         }
-        headingSensor = HeadingSensor(this) { heading, tilted, needsCalibration ->
-            bridge.emit(
-                "heading",
-                JSONObject().put("heading", heading).put("tilted", tilted).put("needsCalibration", needsCalibration),
-            )
-        }
         bridge.handle("setBackEnabled") { params ->
             val enabled = params.getBoolean("enabled")
             runOnUiThread { backCallback.isEnabled = enabled }
@@ -155,10 +148,30 @@ class MainActivity : ComponentActivity() {
                 .put("claimBytes", claimBytes)
         }
         bridge.handle("getSettings") {
-            JSONObject().put("prefetchOnMobileData", AppSettings.prefetchOnMobileData(this))
+            JSONObject()
+                .put("prefetchOnMobileData", AppSettings.prefetchOnMobileData(this))
+                .put("gpsIntervalSeconds", AppSettings.gpsIntervalSeconds(this))
+                .put("cacheLimitMb", AppSettings.cacheLimitMb(this))
         }
         bridge.handle("setPrefetchOnMobileData") { params ->
             AppSettings.setPrefetchOnMobileData(this, params.getBoolean("on"))
+            null
+        }
+        bridge.handle("setGpsInterval") { params ->
+            AppSettings.setGpsIntervalSeconds(this, params.getInt("seconds"))
+            // Republier la visibilité (inchangée) fait relancer au service sa demande de positions,
+            // qui relit l'intervalle : effet immédiat sans redémarrer le GPS.
+            runOnUiThread { LocationHub.setAppVisible(LocationHub.appVisible) }
+            null
+        }
+        bridge.handle("setCacheLimit") { params ->
+            AppSettings.setCacheLimitMb(this, params.getInt("mb"))
+            // Limite baissée : libérer la place maintenant plutôt qu'au prochain téléchargement.
+            ChunkStore.get(this).trimCache()
+            null
+        }
+        bridge.handle("clearCache") {
+            ChunkStore.get(this).clearCache()
             null
         }
         bridge.handle("listClaims") {
@@ -243,7 +256,6 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         LocationHub.addListener(locationListener)
         LocationHub.setAppVisible(true)
-        headingSensor.start()
         // Le listener vient d'être (ré)attaché : la page a pu rater un changement pendant qu'on était
         // en arrière-plan (ex. arrêt depuis la notification), on lui renvoie l'état courant.
         resyncLocationState()
@@ -262,7 +274,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
-        headingSensor.stop()
         LocationHub.setAppVisible(false)
         LocationHub.removeListener(locationListener)
         DownloadHub.removeListener(downloadListener)
@@ -294,10 +305,6 @@ class MainActivity : ComponentActivity() {
             }
         }
         resyncLocationState()
-        // Même signal « la page est prête » que resyncLocationState ci-dessus, côté cap : un démarrage
-        // à froid où le premier relevé du capteur (juste après onStart) aurait couru plus vite que
-        // l'abonnement JS laisserait sinon un téléphone immobile sans cône de cap.
-        headingSensor.resync()
     }
 
     private fun startLocationService() {

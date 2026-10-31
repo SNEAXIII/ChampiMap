@@ -16,7 +16,6 @@ import { PositionLayer } from './components/PositionLayer';
 import { PositionSheet } from './components/PositionSheet';
 import { LocateButton, type FollowMode } from './components/LocateButton';
 import { NorthButton } from './components/NorthButton';
-import { CompassWarnings } from './components/CompassWarnings';
 import { TargetArrow } from './components/TargetArrow';
 import { TargetBanner } from './components/TargetBanner';
 import { useLongPressViseur } from './map/useLongPressViseur';
@@ -50,14 +49,15 @@ export function App() {
   const [panel, setPanel] = useState<Panel>(null);
   const [listReference, setListReference] = useState<LatLon>({ latitude: 0, longitude: 0 });
   const [followMode, setFollowMode] = useState<FollowMode>('free');
-  const [centerOnNextFix, setCenterOnNextFix] = useState(false);
+  // Au démarrage, centrer sur le premier fix (annulé si l'utilisateur déplace la carte avant).
+  const [centerOnNextFix, setCenterOnNextFix] = useState(true);
   const [selecting, setSelecting] = useState(false);
   const waypoints = useWaypoints();
   const location = useLocation();
   const { claims, progress } = useClaims();
   const fix = location.fix;
   const stale = useStale(fix, location.running);
-  const heading = useHeading();
+  const heading = useHeading(fix);
   const [targetId, setTargetId] = useTarget();
   const target = waypoints.find((waypoint) => waypoint.id === targetId) ?? null;
 
@@ -139,8 +139,7 @@ export function App() {
     map.easeTo({ center: [fix.longitude, fix.latitude], bearing: 0, zoom: LOCATE_ZOOM });
   }, [map, fix, centerOnNextFix]);
 
-  // Suivi : la carte suit la position et tourne selon le cap.
-  const headingDegrees = heading?.heading ?? null;
+  // Suivi : la carte suit la position et tourne selon la direction de marche.
   useEffect(() => {
     // Un geste utilisateur en cours (pincer, tourner...) ne doit pas être coupé par ce recentrage.
     // Le viseur (appui long) désactive dragPan : sans cette garde, la carte tournerait encore sous
@@ -149,13 +148,8 @@ export function App() {
     if (!map || !fix || followMode !== 'follow' || userGestureRef.current || viseur !== null || panel !== null) return;
     map.easeTo({
       center: [fix.longitude, fix.latitude],
-      // Cap dégénéré près de la verticale (téléphone redressé) : garder la rotation actuelle plutôt
-      // que suivre un azimut erratique.
-      bearing: heading && !heading.tilted ? heading.heading : map.getBearing(),
-      // Rejoué jusqu'à 10×/s (cap) : un easing par défaut redémarré à chaque appel est saccadé, linéaire
-      // et court enchaîne proprement.
-      duration: 150,
-      easing: (t) => t,
+      // Pas encore de direction de marche : garder la rotation actuelle.
+      bearing: heading ?? map.getBearing(),
     });
   }, [map, fix, followMode, heading, viseur, panel]);
 
@@ -215,11 +209,10 @@ export function App() {
         <MapView onMapReady={setMap} />
         <GpsBadge location={location} stale={stale} />
         {map && <ClaimOverlays map={map} claims={claims} />}
-        {map && <PositionLayer map={map} fix={fix} heading={headingDegrees} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
+        {map && <PositionLayer map={map} fix={fix} heading={heading} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
         {map && <WaypointMarkers map={map} waypoints={waypoints} onSelect={(id) => setSheet({ kind: 'waypoint', id })} />}
         {viseur && <Viseur viseur={viseur} />}
         {map && <NorthButton map={map} hidden={followMode === 'follow'} />}
-        <CompassWarnings heading={heading} active={keepScreenOn} />
         {map && fix && target && <TargetArrow map={map} fix={fix} target={target} stale={stale} />}
         {target && <TargetBanner target={target} distance={fix ? distanceMeters(fix, target) : null} onStop={() => setTargetId(null)} />}
         <LocateButton mode={followMode} onPress={pressLocate} />

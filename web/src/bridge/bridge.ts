@@ -1,9 +1,8 @@
 import { createFakeNative } from './fakeNative';
 
 export type LocationFix = { latitude: number; longitude: number; accuracy: number | null; time: number };
-export type Heading = { heading: number; tilted: boolean; needsCalibration: boolean };
 export type StorageStats = { cacheBytes: number; cacheTargetBytes: number; claimBytes: number };
-export type AppSettings = { prefetchOnMobileData: boolean };
+export type AppSettings = { prefetchOnMobileData: boolean; gpsIntervalSeconds: number; cacheLimitMb: number };
 export type Claim = {
   id: string;
   name: string;
@@ -27,6 +26,9 @@ export type BridgeMethods = {
   getStorageStats: { params: Record<string, never>; result: StorageStats };
   getSettings: { params: Record<string, never>; result: AppSettings };
   setPrefetchOnMobileData: { params: { on: boolean }; result: null };
+  setGpsInterval: { params: { seconds: number }; result: null };
+  setCacheLimit: { params: { mb: number }; result: null };
+  clearCache: { params: Record<string, never>; result: null };
   listClaims: { params: Record<string, never>; result: Claim[] };
   createClaim: { params: RegionRectParams & { id: string; name: string }; result: null };
   renameClaim: { params: { id: string; name: string }; result: null };
@@ -46,7 +48,6 @@ export type BridgeEvents = {
   locationState: { running: boolean; permissionDenied: boolean };
   claimProgress: ClaimProgress;
   claimsChanged: null;
-  heading: Heading;
   /** Chunks [z, x, y] téléchargés après avoir été servis en 404 : tuiles à recharger. */
   chunksReady: [number, number, number][];
 };
