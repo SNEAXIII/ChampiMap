@@ -65,13 +65,13 @@ Nom, taille, date, état (complète / X % / en pause). Actions : renommer, suppr
 - Service au premier plan avec notification. Il s'arrête quand l'app est balayée des récents ou via le bouton Stop de la notification.
 - Écran maintenu allumé uniquement en Suivi ou avec une Cible active. Sinon veille normale, et le GPS repasse à 30 s.
 - Bouton ◎, cycle :
-  - Libre → tap → Centré (recentre une fois, nord en haut) → tap → Suivi ◉ (suit la position + tourne selon le cap).
+  - Libre → tap → Centré (recentre une fois, nord en haut) → tap → Suivi ◉ (suit la position + tourne selon la direction de marche).
   - Déplacer la carte → retour à Libre.
 
 ## Boussole
 
-- Bridge Kotlin : `TYPE_ROTATION_VECTOR`, correction du nord vrai via `GeomagneticField`, alerte de calibration si le magnétomètre est peu fiable.
-- Cap = haut du téléphone tenu à plat. Avertissement « tiens le téléphone à plat » au-delà de ~60° d'inclinaison.
+- Pas de capteur : le cap est la direction de marche, calculée côté web depuis les dernières positions GPS (relèvement depuis le point le plus récent à au moins 15 m et au moins la précision annoncée, sur la dernière minute).
+- Tant qu'on n'a pas assez marché, pas de cône ; à l'arrêt, le dernier cap est gardé.
 - Cible : une flèche en orbite autour du marqueur de position pointe selon le relèvement (même hors écran). Nom + distance en bas. « Arrivé » sous 10 m, sans arrêt automatique. ✕ pour arrêter.
 
 ## Sync Supabase
@@ -86,7 +86,7 @@ Nom, taille, date, état (complète / X % / en pause). Actions : renommer, suppr
 
 - Build debug : la WebView charge le serveur Vite du PC via `adb reverse`, rechargement à chaud sur le téléphone.
 - Build release : app web embarquée dans l'APK (`WebViewAssetLoader`).
-- Dans le navigateur du PC : faux bridge (GPS du navigateur, boussole simulée, chunks IGN en direct).
+- Dans le navigateur du PC : faux bridge (GPS du navigateur, chunks IGN en direct).
 - Origines figées : `http://localhost:5173` (debug) et `https://appassets.androidplatform.net` (release). IndexedDB est rangé par origine : changer l'une d'elles rend invisibles les waypoints locaux non synchronisés. Les waypoints créés en debug n'apparaissent pas en release.
 
 ## Phases

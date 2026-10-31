@@ -127,14 +127,12 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 ## Phase 7 — boussole et cible
 
 ### Task 1 — cap et Suivi
-- [ ] K1 Téléphone posé à plat, haut du téléphone vers le nord (boussole ou repère connu) : le cône bleu du marqueur pointe vers le haut de la carte (nord en haut)
-- [ ] K2 Se tourner de 90° vers l'est : le cône pointe vers la droite de la carte
-- [ ] K3 Tap ◎ deux fois (Suivi ◉) : la carte tourne, le haut de l'écran correspond à la direction du téléphone ; se tourner lentement : la carte suit sans saccades gênantes (signaler sinon)
+- [ ] K1 Au démarrage, immobile : pas de cône de cap sur le marqueur
+- [ ] K2 Marcher ~20 m vers le nord (repère connu) : le cône apparaît et pointe vers le haut de la carte ; tourner à droite et marcher ~20 m : le cône pointe vers la droite
+- [ ] K3 Tap ◎ deux fois (Suivi ◉) et marcher : la carte tourne, le haut de l'écran correspond à la direction de marche ; s'arrêter : la carte garde sa dernière orientation, sans tourner toute seule
 - [ ] K3b En Suivi, pincer pour zoomer : le geste va à son terme sans être coupé net par la rotation de la carte
-- [ ] K4 Redresser le téléphone à la verticale : le bandeau « Tiens le téléphone à plat » apparaît, et la carte arrête de tourner (garde sa dernière orientation) ; le reposer à plat : le bandeau disparaît et la carte reprend le cap
 - [ ] K5 Glisser la carte au doigt (sortie du Suivi) : la carte garde sa rotation et le bouton nord ▲ apparaît ; taper dessus : nord en haut, le bouton disparaît
 - [ ] K6 Tap ◎ (Centré) : nord en haut
-- [ ] K7 Si « Boussole imprécise » s'affiche à un moment, faire un 8 avec le téléphone : le bandeau disparaît
 
 ### Task 2 — cible
 - [ ] L1 Créer (ou utiliser) un waypoint à 100–500 m, dans une direction connue. Tap dessus → [Cibler] : la feuille se ferme, le bandeau « 🎯 Nom · N m » apparaît en bas à gauche, et une flèche verte orbite autour du point bleu vers le waypoint
@@ -151,8 +149,6 @@ Prérequis : `docs/supabase-setup.md` complété (web/.env.local + android/local
 - [ ] M2 En Suivi, ouvrir « Zones hors ligne » → [+ Nouvelle zone hors ligne] : le Suivi est quitté (bouton ◎), la grille de sélection est nord en haut et ne bouge pas pendant le tracé du rectangle
 - [ ] M3 Hors ligne + Suivi en marchant (ou en simulant un déplacement) : le brouillard se met à jour au fil de la marche, pas seulement à l'arrêt
 - [ ] M4 Feuille d'un waypoint (WaypointSheet) à 360 dp de large : les 3 boutons sont lisibles, pas de texte coupé
-- [ ] M5 Provoquer « 🧭 Boussole imprécise : fais un 8 avec le téléphone » : le message est entièrement visible (pas de troncature) même à 360 dp
-- [ ] M6 Téléphone posé à plat et immobile, démarrage à froid de l'app (force-stop puis relance) : le cône de cap apparaît sans avoir à bouger le téléphone
 - [ ] M7 Cibler un waypoint, se déconnecter puis se reconnecter avec le même compte : la cible reste active (comportement attendu)
 
 ## Retours de QA du 21/09 — optimisations
@@ -173,5 +169,10 @@ Prérequis : `npx supabase db push` (colonne `icon`) fait avant l'installation.
 - [ ] O3 Tap sur le point bleu → « Garé ici » deux fois à quelques minutes d'écart : deux points voiture, seul le plus récent est en surbrillance (goutte plus grande avec halo, nom sur fond bleu), badge « Dernière » dans la liste et « Dernière voiture » dans sa feuille
 - [ ] O4 Supprimer la dernière voiture : la précédente passe en surbrillance
 - [ ] O5 Sync : icône changée, attendre ☁ (icône nuage dans la liste) ; se déconnecter / reconnecter : les icônes reviennent à l'identique
-- [ ] O6 Plus aucun emoji : barre du bas, bouton de localisation (3 états), bouton nord, badge GPS, bandeau de cible, alertes boussole, croix de fermeture
+- [ ] O6 Plus aucun emoji : barre du bas, bouton de localisation (3 états), bouton nord, badge GPS, bandeau de cible, croix de fermeture
 - [ ] N10 GPS actif en 4G, sans l'option « pré-téléchargement en données mobiles » : attendre ~10 s après le premier fix, dézoomer loin puis appuyer sur le bouton de localisation : la vue au zoom 16 s'affiche aussitôt (pas de tuiles vides qui arrivent une à une)
+- [ ] P1 Paramètres → curseur « Position GPS toutes les N s » : le glisser à 1 s, revenir sur la carte : le point bleu bouge environ chaque seconde en marchant ; le remettre à 10 s : environ toutes les 10 s. Fermer et rouvrir l'app : la valeur choisie est conservée
+- [ ] P2 Paramètres → Stockage, « Cartes vues récemment : N max » : noter la taille actuelle du cache, baisser le curseur en dessous : quelques secondes plus tard la taille affichée repasse sous la limite ; les zones hors ligne restent intactes (carte toujours visible en mode avion dans une zone). Fermer et rouvrir l'app : la limite est conservée
+- [ ] P3 Paramètres → Stockage → « Vider les cartes vues récemment » : un 1er appui demande confirmation (bouton rouge), le 2e vide le cache : la taille affichée tombe à ~0 Mo ; les zones hors ligne restent visibles en mode avion
+- [ ] P4 Force-stop puis relance de l'app, GPS actif : la carte se centre seule sur la position au premier fix (mode Centré) ; si on déplace la carte avant le premier fix, elle ne saute pas ensuite
+- [ ] P5 En marchant : la pointe de direction sous le point bleu est rouge
