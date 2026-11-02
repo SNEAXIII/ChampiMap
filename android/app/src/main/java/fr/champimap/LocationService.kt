@@ -42,6 +42,7 @@ class LocationService : Service() {
             val fix = result.lastLocation ?: return
             LocationHub.publishFix(fix)
             prefetcher.onFix(fix)
+            TrackStore.onFix(this@LocationService, fix)
         }
     }
 
