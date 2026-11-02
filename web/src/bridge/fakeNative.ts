@@ -7,6 +7,32 @@ let watchId: number | null = null;
 type FakeClaim = { id: string; name: string; xMin: number; yMin: number; xMax: number; yMax: number; createdAt: number; status: 'complete'; bytes: number };
 const fakeClaims: FakeClaim[] = [];
 
+type FakeTrackPoint = { latitude: number; longitude: number; time: number };
+const TRACK_KEY = 'fakeTrack';
+
+function readFakeTrack(): FakeTrackPoint[] {
+  try {
+    return JSON.parse(localStorage.getItem(TRACK_KEY) ?? '[]') as FakeTrackPoint[];
+  } catch {
+    return [];
+  }
+}
+
+/** Même règle que TrackStore.kt (simplifiée) : précision ≤ 30 m, au moins 10 m du dernier point. */
+function recordFakeTrack(point: FakeTrackPoint, accuracy: number): void {
+  if (accuracy > 30) return;
+  const track = readFakeTrack();
+  const last = track.at(-1);
+  if (last) {
+    const dLat = (point.latitude - last.latitude) * 111_320;
+    const dLon = (point.longitude - last.longitude) * 111_320 * Math.cos((point.latitude * Math.PI) / 180);
+    if (Math.hypot(dLat, dLon) < 10) return;
+  }
+  track.push(point);
+  localStorage.setItem(TRACK_KEY, JSON.stringify(track.slice(-5000)));
+  emitFake('trackPoint', point);
+}
+
 /** Pousse un événement comme le ferait Kotlin (navigateur du PC uniquement). */
 export function emitFake(event: string, payload: unknown): void {
   receiveRef?.(JSON.stringify({ event, payload }));
@@ -54,6 +80,12 @@ const handlers: Record<string, FakeHandler> = {
     setTimeout(() => emitFake('claimsChanged', null), 0);
     return null;
   },
+  getTrack: () => readFakeTrack(),
+  clearTrack: () => {
+    localStorage.removeItem(TRACK_KEY);
+    setTimeout(() => emitFake('trackChanged', null), 0);
+    return null;
+  },
   getChunkSizeAverages: () => ({}),
   getAvailableRegions: () => [],
   getCompleteRegions: () => [],
@@ -68,6 +100,10 @@ const handlers: Record<string, FakeHandler> = {
           time: position.timestamp,
         });
         emitFake('locationState', { running: true, permissionDenied: false });
+        recordFakeTrack(
+          { latitude: position.coords.latitude, longitude: position.coords.longitude, time: position.timestamp },
+          position.coords.accuracy,
+        );
       },
       (error) => {
         // Permission refusée : la position ne viendra jamais, on libère watchId pour qu'un nouveau

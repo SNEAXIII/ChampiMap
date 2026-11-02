@@ -176,3 +176,10 @@ Prérequis : `npx supabase db push` (colonne `icon`) fait avant l'installation.
 - [ ] P3 Paramètres → Stockage → « Vider les cartes vues récemment » : un 1er appui demande confirmation (bouton rouge), le 2e vide le cache : la taille affichée tombe à ~0 Mo ; les zones hors ligne restent visibles en mode avion
 - [ ] P4 Force-stop puis relance de l'app, GPS actif : la carte se centre seule sur la position au premier fix (mode Centré) ; si on déplace la carte avant le premier fix, elle ne saute pas ensuite
 - [ ] P5 En marchant : la pointe de direction sous le point bleu est rouge
+
+## Parcours (points violets)
+- [ ] Q1 Marcher ~200 m app ouverte : un petit point violet apparaît environ tous les 10 m derrière le point bleu ; le départ est un point plus gros ; les points les plus anciens sont plus pâles
+- [ ] Q2 Verrouiller le téléphone et marcher ~200 m de plus, puis rouvrir l'app : les points de la marche écran éteint sont là (espacés davantage : position toutes les 30 s en arrière-plan)
+- [ ] Q3 Immobile sous les arbres pendant 5 min : pas de pelote de points autour de soi
+- [ ] Q4 Tap sur le point bleu → « Effacer le parcours » : 1er appui demande confirmation, le 2e efface tous les points ; ils réapparaissent en marchant
+- [ ] Q5 Force-stop puis relance : le parcours est toujours là

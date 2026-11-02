@@ -70,6 +70,10 @@ _Avoid_: orientation (confondu avec portrait/paysage), heading
 L'angle entre le nord vrai et la direction qui va de la position à la cible.
 _Avoid_: bearing, direction du waypoint
 
+**Parcours**:
+Les petits points posés derrière l'utilisateur pendant qu'il marche (un tous les 10 m, positions à ± 30 m ou mieux), pour retrouver son chemin. Enregistré par le service de localisation, donc aussi téléphone en poche. Effacé à la main, ou tout seul quand une nouvelle sortie commence après 6 h sans point.
+_Avoid_: trace, track (sauf dans le code : `TrackStore`, `useTrack`), fil d'Ariane
+
 **Suivi**:
 L'état dans lequel la carte se recentre sur la position et tourne selon le cap. Il s'arrête dès que l'utilisateur déplace la carte.
 _Avoid_: follow, suivre un waypoint

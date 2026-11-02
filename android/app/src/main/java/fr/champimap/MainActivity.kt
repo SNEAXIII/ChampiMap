@@ -53,6 +53,11 @@ class MainActivity : ComponentActivity() {
         override fun onRunningChanged(running: Boolean) = emitLocationState()
     }
 
+    private val trackListener = object : TrackStore.Listener {
+        override fun onPoint(point: TrackStore.Point) = bridge.emit("trackPoint", point.toJson())
+        override fun onCleared() = bridge.emit("trackChanged", null)
+    }
+
     private val downloadListener = object : DownloadHub.Listener {
         override fun onProgress(progress: DownloadHub.Progress) = bridge.emit("claimProgress", progress.toJson())
         override fun onClaimsChanged() = bridge.emit("claimsChanged", null)
@@ -235,6 +240,11 @@ class MainActivity : ComponentActivity() {
                     .map { (x, y) -> JSONArray().put(x).put(y) },
             )
         }
+        bridge.handle("getTrack") { JSONArray(TrackStore.points(this).map { it.toJson() }) }
+        bridge.handle("clearTrack") {
+            TrackStore.clear(this)
+            null
+        }
         bridge.handle("googleSignIn") { GoogleSignIn.signIn(this) }
         bridge.install()
         onBackPressedDispatcher.addCallback(this, backCallback)
@@ -259,6 +269,9 @@ class MainActivity : ComponentActivity() {
         // Le listener vient d'être (ré)attaché : la page a pu rater un changement pendant qu'on était
         // en arrière-plan (ex. arrêt depuis la notification), on lui renvoie l'état courant.
         resyncLocationState()
+        TrackStore.addListener(trackListener)
+        // Des points ont pu s'ajouter en arrière-plan, sans listener : la page relit tout le parcours.
+        bridge.emit("trackChanged", null)
         DownloadHub.addListener(downloadListener)
         DownloadHub.latest().forEach { downloadListener.onProgress(it) }
     }
@@ -276,6 +289,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         LocationHub.setAppVisible(false)
         LocationHub.removeListener(locationListener)
+        TrackStore.removeListener(trackListener)
         DownloadHub.removeListener(downloadListener)
         super.onStop()
     }
@@ -344,6 +358,11 @@ class MainActivity : ComponentActivity() {
         .put("latitude", latitude)
         .put("longitude", longitude)
         .put("accuracy", if (hasAccuracy()) accuracy.toDouble() else JSONObject.NULL)
+        .put("time", time)
+
+    private fun TrackStore.Point.toJson(): JSONObject = JSONObject()
+        .put("latitude", latitude)
+        .put("longitude", longitude)
         .put("time", time)
 
     private fun DownloadHub.Progress.toJson(): JSONObject = JSONObject()

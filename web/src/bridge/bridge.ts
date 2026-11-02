@@ -1,6 +1,8 @@
 import { createFakeNative } from './fakeNative';
 
 export type LocationFix = { latitude: number; longitude: number; accuracy: number | null; time: number };
+/** Point du parcours (fil d'Ariane) enregistré par Kotlin. */
+export type TrackPoint = { latitude: number; longitude: number; time: number };
 export type StorageStats = { cacheBytes: number; cacheTargetBytes: number; claimBytes: number };
 export type AppSettings = { prefetchOnMobileData: boolean; gpsIntervalSeconds: number; cacheLimitMb: number };
 export type Claim = {
@@ -36,6 +38,8 @@ export type BridgeMethods = {
   getChunkSizeAverages: { params: Record<string, never>; result: Record<string, number> };
   getAvailableRegions: { params: RegionRectParams; result: [number, number][] };
   getCompleteRegions: { params: RegionRectParams; result: [number, number][] };
+  getTrack: { params: Record<string, never>; result: TrackPoint[] };
+  clearTrack: { params: Record<string, never>; result: null };
   googleSignIn: { params: Record<string, never>; result: { idToken: string; rawNonce: string } };
 };
 
@@ -50,6 +54,10 @@ export type BridgeEvents = {
   claimsChanged: null;
   /** Chunks [z, x, y] téléchargés après avoir été servis en 404 : tuiles à recharger. */
   chunksReady: [number, number, number][];
+  /** Nouveau point ajouté au parcours. */
+  trackPoint: TrackPoint;
+  /** Parcours effacé ou modifié hors écoute (arrière-plan) : à relire avec getTrack. */
+  trackChanged: null;
 };
 
 type NativePort = {

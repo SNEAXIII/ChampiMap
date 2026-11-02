@@ -13,6 +13,7 @@ import { ClaimsPanel } from './components/ClaimsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { GpsBadge } from './components/GpsBadge';
 import { PositionLayer } from './components/PositionLayer';
+import { TrackLayer } from './components/TrackLayer';
 import { PositionSheet } from './components/PositionSheet';
 import { LocateButton, type FollowMode } from './components/LocateButton';
 import { NorthButton } from './components/NorthButton';
@@ -26,6 +27,7 @@ import { rectBounds } from './claims/regions';
 import { useLocation } from './location/useLocation';
 import { useStale } from './location/useStale';
 import { useHeading } from './location/useHeading';
+import { useTrack } from './track/useTrack';
 import { createWaypoint, defaultWaypointName, latestCarId, type Waypoint } from './waypoints/waypointStore';
 import { CAR_ICON_ID } from './waypoints/icons';
 import { callNative, onNative } from './bridge/bridge';
@@ -58,6 +60,7 @@ export function App() {
   const fix = location.fix;
   const stale = useStale(fix, location.running);
   const heading = useHeading(fix);
+  const track = useTrack();
   const [targetId, setTargetId] = useTarget();
   const target = waypoints.find((waypoint) => waypoint.id === targetId) ?? null;
 
@@ -209,6 +212,7 @@ export function App() {
         <MapView onMapReady={setMap} />
         <GpsBadge location={location} stale={stale} />
         {map && <ClaimOverlays map={map} claims={claims} />}
+        {map && <TrackLayer map={map} points={track.points} />}
         {map && <PositionLayer map={map} fix={fix} heading={heading} stale={stale} onSelect={() => setSheet({ kind: 'position' })} />}
         {map && <WaypointMarkers map={map} waypoints={waypoints} onSelect={(id) => setSheet({ kind: 'waypoint', id })} />}
         {viseur && <Viseur viseur={viseur} />}
@@ -231,6 +235,8 @@ export function App() {
         {sheet?.kind === 'position' && fix && (
           <PositionSheet
             fix={fix}
+            trackLength={track.points.length}
+            onClearTrack={track.clear}
             onClose={() => setSheet(null)}
             onCreateWaypoint={() => setSheet({ kind: 'create', position: fix, defaultName: 'Ma position' })}
             onParkHere={async () => {
